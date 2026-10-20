@@ -14,19 +14,20 @@ import {
   Trash2,
   Lock,
   Layers,
-  History,
   AlertCircle,
   Check,
   ChevronRight,
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import {
   authService,
   APP_STAGES,
   USER_ROLES,
   USER_STATUS,
-  getAuditLogs
+  loadLocalUsers,
 } from '../services/authService';
 import { isGoogleSheetsConnected } from '../config/integrationConfig';
 import { UserFormModal } from '../components/UserFormModal';
@@ -34,9 +35,8 @@ import { UserDetailsModal } from '../components/UserDetailsModal';
 import { formatDisplayDateTime } from '../utils/dateUtils';
 
 export function AdminMasterPage({ currentUser, showToast }) {
-  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'audit'
-  const [users, setUsers] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [users, setUsers] = useState(() => loadLocalUsers());
+  const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Filters & Search
@@ -48,17 +48,15 @@ export function AdminMasterPage({ currentUser, showToast }) {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState(null);
   const [selectedUserDetails, setSelectedUserDetails] = useState(null);
-
-  // Audit Logs
-  const [auditLogs, setAuditLogs] = useState([]);
+  const [visiblePasswords, setVisiblePasswords] = useState(() => new Set());
 
   // Load users from service (Google Sheets or local cache)
   const loadUsers = async () => {
     try {
-      setIsLoading(true);
+      // Keep cached users visible while the live sheet request runs.
+      if (users.length === 0) setIsLoading(true);
       const list = await authService.listUsers();
       setUsers(list);
-      setAuditLogs(getAuditLogs());
     } catch (err) {
       if (showToast) showToast('Failed to load users: ' + err.message, 'error');
     } finally {
@@ -199,7 +197,7 @@ export function AdminMasterPage({ currentUser, showToast }) {
               title="Sync users with Google Sheet 'Login Page' tab"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Sheet'}</span>
+              <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
             </button>
 
             <button
@@ -216,41 +214,18 @@ export function AdminMasterPage({ currentUser, showToast }) {
           </div>
         </div>
 
-        {/* Tab Navigation Pill Bar */}
+        {/* User Management Navigation */}
         <div className="flex items-center gap-2 border-b border-slate-200/70 pt-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('users')}
-            className={`pb-3 px-3 text-xs font-bold transition-all relative flex items-center gap-2 cursor-pointer ${
-              activeTab === 'users'
-                ? 'text-indigo-600 border-b-2 border-indigo-600'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
+          <div className="pb-3 px-3 text-xs font-bold text-indigo-600 border-b-2 border-indigo-600 flex items-center gap-2">
             <Users className="w-4 h-4" />
             <span>User Management ({users.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('audit')}
-            className={`pb-3 px-3 text-xs font-bold transition-all relative flex items-center gap-2 cursor-pointer ${
-              activeTab === 'audit'
-                ? 'text-indigo-600 border-b-2 border-indigo-600'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <History className="w-4 h-4" />
-            <span>Security Audit Log ({auditLogs.length})</span>
-          </button>
+          </div>
         </div>
       </div>
 
       {/* Main Tab Content */}
       <div className="flex-1 p-6 overflow-y-auto">
-        {/* Tab 1: User Management */}
-        {activeTab === 'users' && (
-          <div className="space-y-4">
+        <div className="space-y-4">
             {/* Filter / Search Bar */}
             <div className="p-3.5 bg-white border border-slate-200/80 rounded-2xl shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="relative w-full sm:w-72">
@@ -293,6 +268,7 @@ export function AdminMasterPage({ currentUser, showToast }) {
                 <thead className="bg-slate-50/90 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
                   <tr>
                     <th className="py-3 px-4">User</th>
+                    <th className="py-3 px-3">Password</th>
                     <th className="py-3 px-3">Role</th>
                     <th className="py-3 px-3">Status</th>
                     <th className="py-3 px-3">Permitted Stages</th>
@@ -304,7 +280,7 @@ export function AdminMasterPage({ currentUser, showToast }) {
                 <tbody className="divide-y divide-slate-100">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 italic">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 italic">
                         No users match the search criteria.
                       </td>
                     </tr>
@@ -331,6 +307,32 @@ export function AdminMasterPage({ currentUser, showToast }) {
                                   @{user.username}
                                 </span>
                               </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-[11px] text-slate-600 min-w-[72px]">
+                                {visiblePasswords.has(user.id)
+                                  ? (user.password || 'Not set')
+                                  : '********'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setVisiblePasswords((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(user.id)) next.delete(user.id);
+                                  else next.add(user.id);
+                                  return next;
+                                })}
+                                className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                title={visiblePasswords.has(user.id) ? 'Hide password' : 'Show password'}
+                                aria-label={visiblePasswords.has(user.id) ? `Hide password for ${user.username}` : `Show password for ${user.username}`}
+                              >
+                                {visiblePasswords.has(user.id)
+                                  ? <EyeOff className="w-3.5 h-3.5" />
+                                  : <Eye className="w-3.5 h-3.5" />}
+                              </button>
                             </div>
                           </td>
 
@@ -434,47 +436,7 @@ export function AdminMasterPage({ currentUser, showToast }) {
                 </tbody>
               </table>
             </div>
-          </div>
-        )}
-
-        {/* Tab 2: Audit Log */}
-        {activeTab === 'audit' && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Security & Administrative Audit Trail</h3>
-              <p className="text-xs text-slate-500 font-medium">Chronological record of user accounts, role changes, and security events.</p>
-            </div>
-            <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
-              {auditLogs.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs italic">
-                  No administrative events recorded yet.
-                </div>
-              ) : (
-                auditLogs.map((log) => (
-                  <div key={log.id} className="p-3.5 px-4 flex items-center justify-between text-xs hover:bg-slate-50/60 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                        <History className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-slate-800 block text-xs">{log.action}</span>
-                        <span className="text-[11px] text-slate-500">{log.details}</span>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-[10px] text-slate-400 block font-mono">
-                        {formatDisplayDateTime(log.timestamp)}
-                      </span>
-                      <span className="text-[10px] font-semibold text-slate-600">
-                        By: {log.actor}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* User Create/Edit Modal */}

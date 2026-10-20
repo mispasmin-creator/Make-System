@@ -8,7 +8,6 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { NewRequestModal } from './components/NewRequestModal';
 import { RequestDetailsModal } from './components/RequestDetailsModal';
-import { CreateActionModal } from './components/CreateActionModal';
 
 import { SystemRequestsPage } from './pages/SystemRequestsPage';
 import { IntroduceSystemPage } from './pages/IntroduceSystemPage';
@@ -36,10 +35,9 @@ export default function App() {
   const [requests, setRequests] = useState(() => (dataService.loadCachedRequests ? dataService.loadCachedRequests() : []));
   const [masterOptions, setMasterOptions] = useState(() => (dataService.loadCachedMasterOptions ? dataService.loadCachedMasterOptions() : { companies: [], developers: [] }));
   const [nextRequestNo, setNextRequestNo] = useState(() => (dataService.getNextRequestNumber ? dataService.getNextRequestNumber() : 'SM-0008'));
-  const [isLoading, setIsLoading] = useState(() => {
-    const cached = dataService.loadCachedRequests ? dataService.loadCachedRequests() : [];
-    return cached.length === 0;
-  });
+  // Never block the whole app on the network. Cached/empty state renders immediately
+  // while live Google Sheets data is refreshed in the background.
+  const [isLoading, setIsLoading] = useState(false);
 
   // Modals
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
@@ -165,25 +163,29 @@ export default function App() {
 
   // Derived counts for sidebar and header
   const counts = useMemo(() => {
-    const totalRequests = requests.length;
-    const introducePending = requests.filter(r => !r.introduction?.isCompleted).length;
-    const createPending = requests.filter(r => r.introduction?.isCompleted && r.currentStage === STAGES.CREATE && !r.currentRevisionNo).length;
-    const revisePending = requests.filter(r => {
+    const result = {
+      totalRequests: requests.length,
+      introducePending: 0,
+      createPending: 0,
+      revisePending: 0,
+      testingPending: 0,
+      misPending: 0
+    };
+
+    requests.forEach(r => {
+      if (!r.introduction?.isCompleted) result.introducePending++;
+      if (r.introduction?.isCompleted && r.currentStage === STAGES.CREATE && !r.currentRevisionNo) {
+        result.createPending++;
+      }
+
       const hasRevision = Boolean(r.currentRevisionNo) || (r.testingHistory && r.testingHistory.some(t => t.decision === 'Rejected'));
       const isPendingRevision = r.currentStage === STAGES.REVISE || (r.currentStage === STAGES.CREATE && Boolean(r.currentRevisionNo));
-      return hasRevision && isPendingRevision && r.workStatus !== WORK_STATUS.COMPLETED;
-    }).length;
-    const testingPending = requests.filter(r => r.currentStage === STAGES.TESTING).length;
-    const misPending = requests.filter(r => r.currentStage === STAGES.UPDATE_MIS).length;
+      if (hasRevision && isPendingRevision && r.workStatus !== WORK_STATUS.COMPLETED) result.revisePending++;
+      if (r.currentStage === STAGES.TESTING) result.testingPending++;
+      if (r.currentStage === STAGES.UPDATE_MIS) result.misPending++;
+    });
 
-    return {
-      totalRequests,
-      introducePending,
-      createPending,
-      revisePending,
-      testingPending,
-      misPending
-    };
+    return result;
   }, [requests]);
 
   // Active reminders in Create System
@@ -434,14 +436,16 @@ export default function App() {
       </div>
 
       {/* Global New System Request Modal */}
-      <NewRequestModal
-        isOpen={isNewRequestModalOpen}
-        onClose={() => setIsNewRequestModalOpen(false)}
-        onSubmit={handleCreateRequest}
-        companyOptions={masterOptions.companies}
-        developerOptions={masterOptions.developers}
-        nextRequestNo={nextRequestNo}
-      />
+      {isNewRequestModalOpen && (
+        <NewRequestModal
+          isOpen
+          onClose={() => setIsNewRequestModalOpen(false)}
+          onSubmit={handleCreateRequest}
+          companyOptions={masterOptions.companies}
+          developerOptions={masterOptions.developers}
+          nextRequestNo={nextRequestNo}
+        />
+      )}
 
       {/* View Request Details Modal */}
       {detailsRequest && (

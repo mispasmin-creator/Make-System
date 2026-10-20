@@ -128,7 +128,7 @@ const SEED_USERS = [
 ];
 
 // Helper: Load Users
-function loadLocalUsers() {
+export function loadLocalUsers() {
   if (typeof window === 'undefined') return SEED_USERS;
   try {
     const raw = localStorage.getItem(STORAGE_KEY_USERS);
@@ -157,6 +157,7 @@ function loadLocalUsers() {
   } catch (e) {
     return SEED_USERS;
   }
+  return SEED_USERS;
 }
 
 // Helper: Save Users

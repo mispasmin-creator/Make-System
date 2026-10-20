@@ -29,7 +29,21 @@ const STORAGE_KEY_SEQUENCE = 'make_system_sequence_v1';
 const STORAGE_KEY_SYNC_VERSION = 'make_system_sync_version_v1';
 
 // Internal memory cache for quick responsiveness
-let cachedSyncVersion = '0';
+let cachedSyncVersion = (() => {
+  try {
+    return localStorage.getItem(STORAGE_KEY_SYNC_VERSION) || '0';
+  } catch {
+    return '0';
+  }
+})();
+
+function saveSyncVersion(version) {
+  if (!version) return;
+  cachedSyncVersion = String(version);
+  try {
+    localStorage.setItem(STORAGE_KEY_SYNC_VERSION, cachedSyncVersion);
+  } catch (e) {}
+}
 
 // Seed initial realistic demo data
 function getInitialSampleData() {
@@ -670,13 +684,17 @@ export async function callGoogleAppsScript(action, payload = {}, method = 'POST'
   const url = getGoogleAppsScriptUrl();
   if (!url) throw new Error('Google Apps Script URL is not configured.');
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
   try {
     if (method === 'GET') {
       const queryParams = new URLSearchParams({ action, ...payload });
       const fullUrl = `${url}${url.includes('?') ? '&' : '?'}${queryParams.toString()}`;
       const res = await fetch(fullUrl, {
         method: 'GET',
-        redirect: 'follow'
+        redirect: 'follow',
+        signal: controller.signal
       });
       if (!res.ok) throw new Error(`Google Apps Script responded with HTTP ${res.status}`);
       const data = await res.json();
@@ -693,7 +711,8 @@ export async function callGoogleAppsScript(action, payload = {}, method = 'POST'
       body: JSON.stringify({
         action,
         ...payload
-      })
+      }),
+      signal: controller.signal
     });
 
     if (!res.ok) throw new Error(`Google Apps Script responded with HTTP ${res.status}`);
@@ -703,6 +722,8 @@ export async function callGoogleAppsScript(action, payload = {}, method = 'POST'
   } catch (err) {
     console.error(`Google Apps Script [${action}] failed:`, err);
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -740,7 +761,7 @@ export const dataService = {
     try {
       const res = await callGoogleAppsScript('checkSync', { version: cachedSyncVersion }, 'GET');
       if (res.hasChanges) {
-        cachedSyncVersion = res.version;
+        saveSyncVersion(res.version);
         if (res.requests) {
           saveStoredRequests(res.requests);
         }
@@ -763,10 +784,10 @@ export const dataService = {
    */
   async forceSyncFromSheets() {
     if (isGoogleSheetsConnected()) {
-      cachedSyncVersion = '0';
+      saveSyncVersion('0');
       const res = await callGoogleAppsScript('getRequests', {}, 'GET');
       if (res && res.requests) {
-        cachedSyncVersion = res.version || cachedSyncVersion;
+        saveSyncVersion(res.version || cachedSyncVersion);
         saveStoredRequests(res.requests);
         return {
           requests: res.requests,
@@ -785,20 +806,23 @@ export const dataService = {
   async loadAllData() {
     if (isGoogleSheetsConnected()) {
       try {
-        const res = await callGoogleAppsScript('getRequests', {}, 'GET');
-        if (res && res.requests) {
-          cachedSyncVersion = res.version || cachedSyncVersion;
-          saveStoredRequests(res.requests);
-          if (res.masterOptions) {
-            saveCachedMasterOptions(res.masterOptions);
-          }
+        const sync = await this.checkSync();
+        if (sync.hasChanges && sync.requests) {
           return {
-            requests: res.requests,
-            masterOptions: res.masterOptions || loadCachedMasterOptions(),
-            users: res.users || [],
-            nextRequestNo: getNextRequestNumber(res.requests)
+            requests: sync.requests,
+            masterOptions: sync.masterOptions || loadCachedMasterOptions(),
+            users: sync.users || [],
+            nextRequestNo: getNextRequestNumber(sync.requests)
           };
         }
+
+        const cached = loadStoredRequests();
+        return {
+          requests: cached,
+          masterOptions: loadCachedMasterOptions(),
+          users: [],
+          nextRequestNo: getNextRequestNumber(cached)
+        };
       } catch (err) {
         console.warn('Live Google Sheets loadAllData failed, serving cached:', err);
       }

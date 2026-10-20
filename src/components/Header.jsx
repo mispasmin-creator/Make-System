@@ -182,7 +182,7 @@ export function Header({
 
         {/* Center / Status Badges */}
         <div className="flex items-center gap-2.5">
-          {/* Sync Sheet Live Button */}
+          {/* Fast live sync button */}
           {isConnected && (
             <button
               type="button"
@@ -192,7 +192,7 @@ export function Header({
               title="Click to immediately pull live updates from Google Sheet"
             >
               <RefreshCw className={`w-3 h-3 text-indigo-600 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Sheet'}</span>
+              <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
             </button>
           )}
 
@@ -444,4 +444,3 @@ export function Header({
     </>
   );
 }
-

@@ -1,27 +1,15 @@
 import React, { useState } from 'react';
-import {
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  FileText,
-  Edit3,
-  CheckCircle2,
-  AlertCircle,
-  ShieldCheck
-} from 'lucide-react';
+import { ArrowRight, LockKeyhole, UserRound, AlertCircle, Loader2 } from 'lucide-react';
 import { authService } from '../services/authService';
 
 export function LoginPage({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (event) => {
+    event.preventDefault();
     setError('');
 
     if (!username.trim() || !password.trim()) {
@@ -31,271 +19,457 @@ export function LoginPage({ onLoginSuccess }) {
 
     setIsLoading(true);
     try {
-      const user = await authService.login(username, password, rememberMe);
-      if (onLoginSuccess) {
-        onLoginSuccess(user);
-      }
+      const user = await authService.login(username, password, true);
+      onLoginSuccess?.(user);
     } catch (err) {
-      setError(err.message || 'Login failed. Please verify credentials.');
+      setError(err.message || 'Login failed. Please verify your credentials.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width;
+    const py = (e.clientY - rect.top) / rect.height;
+    // Smooth 3D tilt tracking cursor (-6 to +6 deg)
+    const tiltY = (px - 0.5) * 8;
+    const tiltX = (0.5 - py) * 8;
+    setTilt({ x: tiltX, y: tiltY });
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    setTilt({ x: 0, y: 0 });
+  };
 
   return (
-    <div className="min-h-screen w-screen flex flex-col justify-center items-center py-5 px-4 bg-[#f4f7fc] relative overflow-x-hidden font-sans">
-      
-      {/* Background Decorative Soft Curved Waves */}
-      <div className="absolute top-0 right-0 w-[480px] h-[480px] bg-gradient-to-bl from-blue-100/50 via-sky-50/30 to-transparent rounded-full blur-3xl pointer-events-none -mr-28 -mt-28" />
-      <div className="absolute bottom-0 left-0 w-[420px] h-[420px] bg-gradient-to-tr from-indigo-50/40 via-blue-50/25 to-transparent rounded-full blur-3xl pointer-events-none -ml-28 -mb-28" />
+    <div
+      style={{
+        minHeight: '100vh',
+        width: '100vw',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#EDF3FA',
+        fontFamily: "'Plus Jakarta Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        padding: '24px 16px',
+        position: 'relative',
+        overflow: 'hidden',
+        boxSizing: 'border-box'
+      }}
+    >
+      {/* Ambient background blur lighting */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: isHovered
+            ? `translate(-50%, -50%) scale(1.08)`
+            : 'translate(-50%, -50%) scale(1)',
+          width: '850px',
+          height: '560px',
+          background: 'radial-gradient(circle, rgba(0, 102, 255, 0.16) 0%, rgba(219, 234, 254, 0.45) 60%, transparent 80%)',
+          filter: 'blur(80px)',
+          transition: 'transform 0.4s ease',
+          pointerEvents: 'none'
+        }}
+      />
 
-      {/* Top Header Bar with Pasary Logo + Make System Brand */}
-      <header className="w-full max-w-[940px] flex items-center justify-between mb-3.5 relative z-10 px-1">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-white shadow-xs border border-slate-200/80 p-1 flex items-center justify-center transition-transform hover:scale-105">
-            <img
-              src="/logo.png"
-              alt="Pasary Logo"
-              className="w-full h-full object-contain"
+      {/* Main Floating 2-Column Card with Cursor-triggered Levitating Float & 3D Tilt */}
+      <div
+        onMouseMove={handleMouseMove}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={isHovered ? 'animate-card-floating' : ''}
+        style={{
+          position: 'relative',
+          zIndex: 10,
+          width: '100%',
+          maxWidth: '880px',
+          minHeight: '480px',
+          borderRadius: '28px',
+          transition: isHovered
+            ? 'none'
+            : 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease',
+          transform: isHovered
+            ? undefined
+            : 'perspective(1200px) translateY(0px)',
+          boxShadow: isHovered
+            ? undefined
+            : '0 25px 60px -15px rgba(0, 80, 220, 0.14), 0 0 1px rgba(0, 0, 0, 0.08)'
+        }}
+      >
+        <main
+          style={{
+            position: 'relative',
+            width: '100%',
+            minHeight: '480px',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '28px',
+            border: '1px solid rgba(255, 255, 255, 0.85)',
+            display: 'flex',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            overflow: 'hidden',
+            transform: isHovered
+              ? `perspective(1200px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`
+              : 'perspective(1200px) rotateX(0deg) rotateY(0deg)',
+            transition: 'transform 0.1s ease-out',
+            willChange: 'transform'
+          }}
+        >
+        {/* Left Side: Brand Visual with Fluid Blue Waves */}
+        <section
+          style={{
+            flex: '1 1 380px',
+            position: 'relative',
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #F5F9FE 55%, #E3EFFF 100%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '48px 32px',
+            overflow: 'hidden',
+            minHeight: '340px'
+          }}
+        >
+          {/* Smooth layered wave graphics matching screenshot */}
+          <svg
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              zIndex: 1
+            }}
+            viewBox="0 0 500 500"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id="waveBack" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#0066FF" stopOpacity="0.22" />
+                <stop offset="70%" stopColor="#93C5FD" stopOpacity="0.12" />
+                <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="waveMid" x1="0%" y1="100%" x2="70%" y2="20%">
+                <stop offset="0%" stopColor="#0066FF" stopOpacity="0.45" />
+                <stop offset="60%" stopColor="#60A5FA" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="#EFF6FF" stopOpacity="0.05" />
+              </linearGradient>
+              <linearGradient id="waveDeep" x1="0%" y1="100%" x2="50%" y2="30%">
+                <stop offset="0%" stopColor="#0055EE" stopOpacity="0.75" />
+                <stop offset="50%" stopColor="#0066FF" stopOpacity="0.55" />
+                <stop offset="100%" stopColor="#93C5FD" stopOpacity="0.1" />
+              </linearGradient>
+              <linearGradient id="waveFront" x1="0%" y1="100%" x2="40%" y2="50%">
+                <stop offset="0%" stopColor="#0066FF" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#38BDF8" stopOpacity="0.35" />
+              </linearGradient>
+            </defs>
+
+            {/* Wave 1: Soft Light Top */}
+            <path
+              d="M 0,500 L 0,220 C 70,200 140,290 250,250 C 350,210 420,130 500,100 L 500,500 Z"
+              fill="url(#waveBack)"
             />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 leading-none">
-                Make System
-              </span>
-              <span className="text-[9px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
-                Pasary Enterprise
-              </span>
+            {/* Wave 2: Medium Azure */}
+            <path
+              d="M 0,500 L 0,300 C 90,280 160,370 270,320 C 370,270 430,220 500,190 L 500,500 Z"
+              fill="url(#waveMid)"
+            />
+            {/* Wave 3: Deep Blue Flow */}
+            <path
+              d="M 0,500 L 0,370 C 80,350 160,430 270,380 C 360,330 420,290 500,280 L 500,500 Z"
+              fill="url(#waveDeep)"
+            />
+            {/* Wave 4: Bottom Vibrant Accent */}
+            <path
+              d="M 0,500 L 0,430 C 70,410 140,470 230,440 C 320,410 410,390 500,360 L 500,500 Z"
+              fill="url(#waveFront)"
+            />
+          </svg>
+
+          {/* Centered Brand Mark */}
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center'
+            }}
+          >
+            {/* Make System Official Brand Logo */}
+            <div
+              className="animate-logo-float"
+              style={{
+                width: '86px',
+                height: '86px',
+                borderRadius: '22px',
+                backgroundColor: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '14px',
+                marginBottom: '18px',
+                boxShadow: '0 14px 32px -6px rgba(0, 102, 255, 0.22), 0 4px 12px rgba(15, 23, 42, 0.04)',
+                border: '2px solid rgba(255, 255, 255, 0.95)'
+              }}
+            >
+              <img
+                src="/logo.png"
+                alt="Make System Logo"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
             </div>
-            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-              Software Workflow & Lifecycle Automation
+
+            {/* Heading */}
+            <h1
+              style={{
+                fontSize: '32px',
+                fontWeight: 800,
+                color: '#0A1A32',
+                margin: '0 0 6px 0',
+                letterSpacing: '-0.5px'
+              }}
+            >
+              Make <span style={{ color: '#0066FF' }}>System</span>
+            </h1>
+
+            {/* Subtitle with spaced uppercase */}
+            <p
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.26em',
+                color: '#76879E',
+                margin: 0,
+                textTransform: 'uppercase'
+              }}
+            >
+              PLAN &bull; BUILD &bull; TRACK &bull; GROW
             </p>
           </div>
-        </div>
+        </section>
 
-        <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 bg-white/90 backdrop-blur px-2.5 py-1 rounded-full border border-slate-200/60 shadow-2xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span>System Live & Ready</span>
-        </div>
-      </header>
-
-      {/* Main Unified Split Card (Compact & Proportional Size) */}
-      <main className="w-full max-w-[940px] bg-white rounded-2xl shadow-[0_16px_45px_-12px_rgba(15,23,42,0.08)] border border-slate-200/70 overflow-hidden relative z-10 flex flex-col lg:flex-row transition-all">
-        
-        {/* Left Column: Clean White Login Form */}
-        <div className="lg:w-[46%] p-6 sm:p-8 flex flex-col justify-between bg-white border-b lg:border-b-0 lg:border-r border-slate-100">
-          <div>
-            {/* Header Title */}
-            <div className="mb-5">
-              <h1 className="text-2xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight leading-tight">
-                Welcome back
-              </h1>
-              <p className="text-slate-500 text-xs font-medium mt-1">
-                Sign in to manage your system requests
+        {/* Right Side: Clean Sign In Form */}
+        <section
+          style={{
+            flex: '1 1 380px',
+            backgroundColor: '#FFFFFF',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            padding: '48px 48px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div style={{ width: '100%', maxWidth: '340px', margin: '0 auto' }}>
+            {/* Header */}
+            <div style={{ marginBottom: '28px' }}>
+              <h2
+                style={{
+                  fontSize: '28px',
+                  fontWeight: 800,
+                  color: '#0A1A32',
+                  margin: '0 0 6px 0',
+                  letterSpacing: '-0.5px'
+                }}
+              >
+                Sign In
+              </h2>
+              <p
+                style={{
+                  fontSize: '13px',
+                  color: '#76879E',
+                  margin: 0
+                }}
+              >
+                Login to continue to Make System
               </p>
             </div>
 
-            {/* Error Message */}
+            {/* Error Banner */}
             {error && (
-              <div className="mb-4 p-2.5 bg-rose-50 border border-rose-200/80 rounded-lg text-xs font-semibold text-rose-700 flex items-center gap-2 animate-in fade-in duration-200">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <div
+                style={{
+                  marginBottom: '18px',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  backgroundColor: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  color: '#B91C1C',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}
+              >
+                <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
                 <span>{error}</span>
               </div>
             )}
 
-            {/* Form */}
-            <form onSubmit={handleLogin} className="space-y-3.5">
-              
-              {/* User Field */}
-              <div>
-                <label
-                  htmlFor="loginUser"
-                  className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5"
-                >
-                  User
-                </label>
-                <div className="relative">
-                  <input
-                    id="loginUser"
-                    type="text"
-                    required
-                    autoComplete="username"
-                    placeholder="Enter username (e.g. admin or ahitesh)"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs sm:text-sm placeholder-slate-400 focus:outline-none focus:ring-3 focus:ring-blue-100 focus:border-blue-600 transition-all shadow-2xs"
-                  />
-                </div>
+            {/* Form Fields */}
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Username Field */}
+              <div style={{ position: 'relative', width: '100%' }}>
+                <UserRound
+                  style={{
+                    position: 'absolute',
+                    left: '14px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '18px',
+                    height: '18px',
+                    color: '#8C9BAE',
+                    pointerEvents: 'none'
+                  }}
+                  strokeWidth={1.75}
+                />
+                <input
+                  id="loginUser"
+                  type="text"
+                  required
+                  autoComplete="username"
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '13px 16px 13px 44px',
+                    border: '1px solid #DCE4EE',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    color: '#0A1A32',
+                    backgroundColor: '#FFFFFF',
+                    outline: 'none',
+                    transition: 'border-color 0.15s, box-shadow 0.15s'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#0066FF';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 102, 255, 0.14)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#DCE4EE';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                />
               </div>
 
               {/* Password Field */}
-              <div>
-                <label
-                  htmlFor="loginPassword"
-                  className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="loginPassword"
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    placeholder="••••••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3.5 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs sm:text-sm placeholder-slate-400 focus:outline-none focus:ring-3 focus:ring-blue-100 focus:border-blue-600 transition-all shadow-2xs tracking-widest font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-0.5"
-                    title={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
+              <div style={{ position: 'relative', width: '100%' }}>
+                <LockKeyhole
+                  style={{
+                    position: 'absolute',
+                    left: '14px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '18px',
+                    height: '18px',
+                    color: '#8C9BAE',
+                    pointerEvents: 'none'
+                  }}
+                  strokeWidth={1.75}
+                />
+                <input
+                  id="loginPassword"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '13px 16px 13px 44px',
+                    border: '1px solid #DCE4EE',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    color: '#0A1A32',
+                    backgroundColor: '#FFFFFF',
+                    outline: 'none',
+                    transition: 'border-color 0.15s, box-shadow 0.15s'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#0066FF';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 102, 255, 0.14)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#DCE4EE';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                />
               </div>
 
-              {/* Remember me (Forgot password removed as requested) */}
-              <div className="flex items-center text-xs pt-0.5">
-                <label className="flex items-center gap-2 cursor-pointer select-none text-slate-600 font-medium">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-3.5 h-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
-                  />
-                  <span className="text-[11px]">Remember me</span>
-                </label>
-              </div>
-
-              {/* Sign In Primary Blue Button */}
+              {/* Login Button */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-sm shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 mt-2"
+                style={{
+                  width: '100%',
+                  marginTop: '8px',
+                  padding: '13px 20px',
+                  backgroundColor: '#0066FF',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  cursor: isLoading ? 'default' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(0, 102, 255, 0.28)',
+                  transition: 'background-color 0.15s, transform 0.15s, box-shadow 0.15s',
+                  opacity: isLoading ? 0.7 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.backgroundColor = '#0052CC';
+                    e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 102, 255, 0.38)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#0066FF';
+                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 102, 255, 0.28)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
               >
                 {isLoading ? (
                   <>
-                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Loader2 style={{ width: 18, height: 18, animation: 'spin 1s linear infinite' }} />
                     <span>Signing in...</span>
                   </>
                 ) : (
-                  <span>Sign in</span>
+                  <>
+                    <span>Login</span>
+                    <ArrowRight style={{ width: 17, height: 17 }} strokeWidth={2.2} />
+                  </>
                 )}
               </button>
             </form>
-
-            {/* Administrator Contact Link */}
-            <div className="mt-4 text-center text-[11px] text-slate-500">
-              Need access?{' '}
-              <a
-                href="mailto:admin@pasary.com"
-                className="text-blue-600 hover:text-blue-700 font-semibold hover:underline"
-              >
-                Contact your administrator.
-              </a>
-            </div>
           </div>
-
-
-        </div>
-
-        {/* Right Column: Hero Illustration & Compact SaaS Floating Cards */}
-        <div className="lg:w-[54%] bg-gradient-to-br from-[#f8fafd] via-[#edf3fc] to-[#e4eefb] p-6 sm:p-8 flex flex-col justify-between relative overflow-hidden">
-          
-          {/* Subtle Ambient Background circles */}
-          <div className="absolute top-6 right-6 w-56 h-56 bg-blue-200/25 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -bottom-6 -left-6 w-56 h-56 bg-sky-200/30 rounded-full blur-2xl pointer-events-none" />
-
-          {/* Heading Section */}
-          <div className="text-center relative z-10 mb-4">
-            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              Build better. Improve faster.
-            </h2>
-            <p className="text-slate-600 text-xs font-medium mt-1">
-              Turn business requirements into digital solutions.
-            </p>
-          </div>
-
-          {/* SaaS Floating Feature Cards Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 relative z-10 mb-4">
-            
-            {/* Card 1: New request */}
-            <div className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl p-2.5 shadow-[0_4px_12px_-4px_rgba(37,99,235,0.06)] flex items-start gap-2 hover:-translate-y-0.5 transition-all group">
-              <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                <FileText className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="block text-[11px] font-bold text-slate-900 leading-tight truncate">
-                  New request
-                </span>
-                <span className="text-[9px] text-slate-500 leading-tight block mt-0.5 truncate">
-                  Submit new system
-                </span>
-              </div>
-            </div>
-
-            {/* Card 2: Change request */}
-            <div className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl p-2.5 shadow-[0_4px_12px_-4px_rgba(37,99,235,0.06)] flex items-start gap-2 hover:-translate-y-0.5 transition-all group">
-              <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                <Edit3 className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="block text-[11px] font-bold text-slate-900 leading-tight truncate">
-                  Change request
-                </span>
-                <span className="text-[9px] text-slate-500 leading-tight block mt-0.5 truncate">
-                  Modify existing
-                </span>
-              </div>
-            </div>
-
-            {/* Card 3: Review */}
-            <div className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl p-2.5 shadow-[0_4px_12px_-4px_rgba(16,185,129,0.06)] flex items-start gap-2 hover:-translate-y-0.5 transition-all group">
-              <div className="w-6 h-6 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="block text-[11px] font-bold text-slate-900 leading-tight truncate">
-                  Review & QA
-                </span>
-                <span className="text-[9px] text-slate-500 leading-tight block mt-0.5 truncate">
-                  Track approvals
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Visual Illustration Mockup */}
-          <div className="relative z-10 flex-1 flex items-center justify-center my-1">
-            <div className="w-full max-w-sm rounded-xl bg-white/70 backdrop-blur-sm border border-white p-1.5 shadow-[0_12px_28px_-8px_rgba(37,99,235,0.1)] overflow-hidden transition-transform hover:scale-[1.01]">
-              <img
-                src="/login-hero.jpg"
-                alt="Make System Lifecycle Collaboration"
-                className="w-full h-auto max-h-[220px] object-contain rounded-lg"
-              />
-            </div>
-          </div>
-
-          {/* Micro Security Banner */}
-          <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-center gap-1.5 text-slate-500 text-[10px] font-medium">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Pasary Minerals Enterprise Security • End-to-end Encrypted Sessions</span>
-          </div>
-
-        </div>
+        </section>
       </main>
-
-      {/* Bottom Footer Note */}
-      <footer className="w-full max-w-[940px] text-center mt-3 text-slate-400 text-[11px] font-medium relative z-10">
-        Internal workspace • Authorized team members only
-      </footer>
-
+      </div>
     </div>
   );
 }

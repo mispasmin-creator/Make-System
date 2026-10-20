@@ -81,12 +81,12 @@ function doGet(e) {
       });
     }
 
-    // Default: 'getRequests' returns requests, master options, and users in 1 single fast roundtrip
+    // Default FMS payload stays small: users are loaded separately through getUsers.
+    // Reading Login Page here made every FMS refresh slower than necessary.
     return jsonResponse({
       version: getSyncVersion(),
       requests: fetchAllRequests(),
-      masterOptions: fetchMasterOptions(),
-      users: fetchAllUsers()
+      masterOptions: fetchMasterOptions()
     });
   } catch (err) {
     return jsonResponse({ error: err.toString(), stack: err.stack });
