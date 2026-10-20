@@ -21,7 +21,7 @@ export const GOOGLE_SHEETS_CONFIG = {
   },
 
   // Polling interval in milliseconds for background real-time sync from Sheets to React
-  realTimeSyncIntervalMs: 5000,
+  realTimeSyncIntervalMs: 12000,
 
   // Workflow & Reference Attachment Upload Settings
   attachments: {

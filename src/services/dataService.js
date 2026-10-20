@@ -24,6 +24,7 @@ import {
 } from '../config/integrationConfig';
 
 const STORAGE_KEY_REQUESTS = 'make_system_requests_v1';
+const STORAGE_KEY_MASTER = 'make_system_master_v1';
 const STORAGE_KEY_SEQUENCE = 'make_system_sequence_v1';
 const STORAGE_KEY_SYNC_VERSION = 'make_system_sync_version_v1';
 
@@ -584,6 +585,42 @@ function getInitialSampleData() {
 }
 
 // LocalStorage helpers
+// LocalStorage helpers
+export function loadCachedRequests() {
+  return loadStoredRequests();
+}
+
+export function loadCachedMasterOptions() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MASTER);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { companies: [...SAMPLE_COMPANIES], developers: [...SAMPLE_DEVELOPERS] };
+}
+
+export function saveCachedMasterOptions(options) {
+  try {
+    localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(options));
+  } catch (e) {}
+}
+
+export function getNextRequestNumber(requestsList) {
+  const list = requestsList || loadStoredRequests();
+  let maxNum = 0;
+  (list || []).forEach(r => {
+    const match = String(r.requestNo || '').match(/SM-(\d+)/);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > maxNum) maxNum = n;
+    }
+  });
+  if (maxNum === 0) {
+    const current = parseInt(localStorage.getItem(STORAGE_KEY_SEQUENCE) || '7', 10);
+    return formatRequestNumber(current + 1);
+  }
+  return formatRequestNumber(maxNum + 1);
+}
+
 function loadStoredRequests() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_REQUESTS);
@@ -623,7 +660,7 @@ export function formatRequestNumber(num) {
   return `SM-${String(num).padStart(4, '0')}`;
 }
 
-const delay = (ms = 120) => new Promise(res => setTimeout(res, ms));
+const delay = (ms = 40) => new Promise(res => setTimeout(res, ms));
 
 /**
  * Universal API Client for Google Apps Script Web App
@@ -743,54 +780,72 @@ export const dataService = {
   },
 
   /**
-   * Load Master dropdown options
+   * High-Performance Unified Data Loader (1 single fast network request)
    */
-  async getMasterOptions() {
+  async loadAllData() {
     if (isGoogleSheetsConnected()) {
       try {
-        const res = await callGoogleAppsScript('getMasterOptions', {}, 'GET');
-        return {
-          companies: res.companies || SAMPLE_COMPANIES,
-          developers: res.developers || SAMPLE_DEVELOPERS,
-          isLiveGoogleSheets: true
-        };
+        const res = await callGoogleAppsScript('getRequests', {}, 'GET');
+        if (res && res.requests) {
+          cachedSyncVersion = res.version || cachedSyncVersion;
+          saveStoredRequests(res.requests);
+          if (res.masterOptions) {
+            saveCachedMasterOptions(res.masterOptions);
+          }
+          return {
+            requests: res.requests,
+            masterOptions: res.masterOptions || loadCachedMasterOptions(),
+            users: res.users || [],
+            nextRequestNo: getNextRequestNumber(res.requests)
+          };
+        }
       } catch (err) {
-        console.warn('Falling back to local master options due to network error:', err);
+        console.warn('Live Google Sheets loadAllData failed, serving cached:', err);
       }
     }
 
-    await delay(40);
+    const cached = loadStoredRequests();
     return {
-      companies: [...SAMPLE_COMPANIES],
-      developers: [...SAMPLE_DEVELOPERS],
-      isLiveGoogleSheets: false
+      requests: cached,
+      masterOptions: loadCachedMasterOptions(),
+      users: [],
+      nextRequestNo: getNextRequestNumber(cached)
     };
   },
 
   /**
-   * Preview the next auto-generated System Request No.
+   * Load Master dropdown options (uses local cache instantly)
    */
-  async peekNextRequestNumber() {
+  async getMasterOptions() {
+    const cached = loadCachedMasterOptions();
     if (isGoogleSheetsConnected()) {
       try {
-        const requests = await this.listRequests();
-        let maxNum = 0;
-        requests.forEach(r => {
-          const match = String(r.requestNo).match(/SM-(\d+)/);
-          if (match) {
-            const n = parseInt(match[1], 10);
-            if (n > maxNum) maxNum = n;
-          }
-        });
-        return formatRequestNumber(maxNum + 1);
-      } catch (e) {
-        // Fallback
+        const res = await callGoogleAppsScript('getMasterOptions', {}, 'GET');
+        if (res && (res.companies || res.developers)) {
+          const opts = {
+            companies: res.companies || cached.companies || SAMPLE_COMPANIES,
+            developers: res.developers || cached.developers || SAMPLE_DEVELOPERS,
+            isLiveGoogleSheets: true
+          };
+          saveCachedMasterOptions(opts);
+          return opts;
+        }
+      } catch (err) {
+        console.warn('Falling back to local master options due to network error:', err);
       }
     }
+    return { ...cached, isLiveGoogleSheets: false };
+  },
 
-    await delay(30);
-    const current = parseInt(localStorage.getItem(STORAGE_KEY_SEQUENCE) || '7', 10);
-    return formatRequestNumber(current + 1);
+  /**
+   * Preview the next auto-generated System Request No (Instant in-memory, 0ms)
+   */
+  async peekNextRequestNumber(requestsList) {
+    return getNextRequestNumber(requestsList);
+  },
+
+  getNextRequestNumber(requestsList) {
+    return getNextRequestNumber(requestsList);
   },
 
   /**
@@ -895,14 +950,43 @@ export const dataService = {
       });
 
       if (res.version) cachedSyncVersion = res.version;
-      // Refresh and return full list
-      const freshList = await this.listRequests();
-      const created = freshList.find(r => r.id === res.id || r.requestNo === res.requestNo);
-      return created || freshList[0];
+      const currentList = loadStoredRequests();
+      const newReq = res.request || {
+        id: res.id || `req-${Date.now()}`,
+        requestNo: res.requestNo,
+        companyName,
+        systemName: safeName,
+        systemRequirements: safeName,
+        businessPurpose,
+        assignedDeveloper,
+        targetCompletionDate,
+        currentStage: STAGES.INTRODUCE,
+        currentStatus: 'Introduce: Pending',
+        workStatus: 'Pending Kickoff',
+        progressPercent: 0,
+        introduction: { isCompleted: false },
+        testingHistory: [],
+        misUpdate: null,
+        activityLog: [{
+          id: `act-${Date.now()}`,
+          action: 'Request Created',
+          actor: CURRENT_USER.name,
+          timestamp: new Date().toISOString(),
+          details: `System Request ${res.requestNo} created.`
+        }],
+        attachments,
+        createdAt: new Date().toISOString(),
+        createdBy: CURRENT_USER.name,
+        lastUpdatedAt: new Date().toISOString()
+      };
+
+      const allRequests = [newReq, ...currentList.filter(r => r.requestNo !== newReq.requestNo && r.id !== newReq.id)];
+      saveStoredRequests(allRequests);
+      return Object.assign(newReq, { allRequests, newReq });
     }
 
     // Local sample mode
-    await delay(180);
+    await delay(30);
     const nextSeq = getNextSequenceNumber();
     const requestNo = formatRequestNumber(nextSeq);
     const nowISO = getNowKolkataISO();
@@ -960,7 +1044,7 @@ export const dataService = {
     const requests = loadStoredRequests();
     requests.unshift(newRequest);
     saveStoredRequests(requests);
-    return newRequest;
+    return Object.assign(newRequest, { allRequests: requests, newReq: newRequest });
   },
 
   /**
@@ -977,12 +1061,29 @@ export const dataService = {
         }
       });
       if (res.version) cachedSyncVersion = res.version;
-      const freshList = await this.listRequests();
-      return freshList.find(r => r.id === requestId || r.requestNo === requestId) || freshList[0];
+      const currentList = loadStoredRequests();
+      const updatedReq = res.request || {
+        ...currentList.find(r => r.id === requestId || r.requestNo === requestId),
+        currentStage: STAGES.CREATE,
+        currentStatus: 'Create System: Pending',
+        workStatus: WORK_STATUS.IN_PROGRESS,
+        progressPercent: 0,
+        latestRemarks: remarks,
+        introduction: {
+          isCompleted: true,
+          meetingDate,
+          remarks,
+          completedAt: new Date().toISOString(),
+          completedBy: CURRENT_USER.name
+        }
+      };
+      const allRequests = currentList.map(r => (r.id === requestId || r.requestNo === requestId) ? { ...r, ...updatedReq } : r);
+      saveStoredRequests(allRequests);
+      return Object.assign(updatedReq, { allRequests, updatedReq });
     }
 
     // Local sample mode
-    await delay(160);
+    await delay(30);
     const requests = loadStoredRequests();
     const req = requests.find(r => r.id === requestId || r.requestNo === requestId);
     if (!req) throw new Error('Request not found');
@@ -1022,7 +1123,7 @@ export const dataService = {
     });
 
     saveStoredRequests(requests);
-    return req;
+    return Object.assign(req, { allRequests: requests, updatedReq: req });
   },
 
   /**
@@ -1047,12 +1148,15 @@ export const dataService = {
         }
       });
       if (res.version) cachedSyncVersion = res.version;
-      const freshList = await this.listRequests();
-      return freshList.find(r => r.id === requestId || r.requestNo === requestId) || freshList[0];
+      const currentList = loadStoredRequests();
+      const updatedReq = res.request || currentList.find(r => r.id === requestId || r.requestNo === requestId);
+      const allRequests = currentList.map(r => (r.id === requestId || r.requestNo === requestId) ? { ...r, ...updatedReq } : r);
+      saveStoredRequests(allRequests);
+      return Object.assign(updatedReq, { allRequests, updatedReq });
     }
 
     // Local sample mode
-    await delay(160);
+    await delay(30);
     const requests = loadStoredRequests();
     const req = requests.find(r => r.id === requestId || r.requestNo === requestId);
     if (!req) throw new Error('Request not found');
@@ -1103,7 +1207,6 @@ export const dataService = {
         req.holdExtendTargetDate = finalHoldExtendDate;
         dateChangeNote = ` Hold Extend Target Date set to ${finalHoldExtendDate}.`;
       }
-      // CRITICAL: req.targetCompletionDate is PRESERVED and NEVER overwritten!
 
       activityAction = 'Development Put On Hold';
       activityDetails = `Reason for Hold: "${holdReason}".${dateChangeNote} (Preserved progress: ${finalProgress}%)`;
@@ -1165,7 +1268,7 @@ export const dataService = {
     });
 
     saveStoredRequests(requests);
-    return req;
+    return Object.assign(req, { allRequests: requests, updatedReq: req });
   },
 
   /**
@@ -1185,12 +1288,15 @@ export const dataService = {
         }
       });
       if (res.version) cachedSyncVersion = res.version;
-      const freshList = await this.listRequests();
-      return freshList.find(r => r.id === requestId || r.requestNo === requestId) || freshList[0];
+      const currentList = loadStoredRequests();
+      const updatedReq = res.request || currentList.find(r => r.id === requestId || r.requestNo === requestId);
+      const allRequests = currentList.map(r => (r.id === requestId || r.requestNo === requestId) ? { ...r, ...updatedReq } : r);
+      saveStoredRequests(allRequests);
+      return Object.assign(updatedReq, { allRequests, updatedReq });
     }
 
     // Local sample mode
-    await delay(160);
+    await delay(30);
     const requests = loadStoredRequests();
     const req = requests.find(r => r.id === requestId || r.requestNo === requestId);
     if (!req) throw new Error('Request not found');
@@ -1269,13 +1375,13 @@ export const dataService = {
         action: `Testing Rejected (${revisionNo})`,
         actor: CURRENT_USER.name,
         timestamp: nowISO,
-        details: `Testing rejected. Generated ${revisionNo}.${dateChangeNote} Returned to Create System at 0% progress.`
+        details: `Testing rejected. Generated ${revisionNo}.${dateChangeNote} Returned to Revise System queue.`
       });
     }
 
     req.lastUpdatedAt = nowISO;
     saveStoredRequests(requests);
-    return req;
+    return Object.assign(req, { allRequests: requests, updatedReq: req });
   },
 
   /**
@@ -1291,12 +1397,15 @@ export const dataService = {
         }
       });
       if (res.version) cachedSyncVersion = res.version;
-      const freshList = await this.listRequests();
-      return freshList.find(r => r.id === requestId || r.requestNo === requestId) || freshList[0];
+      const currentList = loadStoredRequests();
+      const updatedReq = res.request || currentList.find(r => r.id === requestId || r.requestNo === requestId);
+      const allRequests = currentList.map(r => (r.id === requestId || r.requestNo === requestId) ? { ...r, ...updatedReq } : r);
+      saveStoredRequests(allRequests);
+      return Object.assign(updatedReq, { allRequests, updatedReq });
     }
 
     // Local sample mode
-    await delay(160);
+    await delay(30);
     const requests = loadStoredRequests();
     const req = requests.find(r => r.id === requestId || r.requestNo === requestId);
     if (!req) throw new Error('Request not found');
@@ -1324,7 +1433,6 @@ export const dataService = {
     });
 
     saveStoredRequests(requests);
-    return req;
   },
 
   /**

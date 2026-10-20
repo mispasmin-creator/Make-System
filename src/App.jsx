@@ -32,10 +32,14 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const [requests, setRequests] = useState([]);
-  const [masterOptions, setMasterOptions] = useState({ companies: [], developers: [] });
-  const [nextRequestNo, setNextRequestNo] = useState('SM-0008');
-  const [isLoading, setIsLoading] = useState(true);
+  // Instant 0ms initial load directly from local cache
+  const [requests, setRequests] = useState(() => (dataService.loadCachedRequests ? dataService.loadCachedRequests() : []));
+  const [masterOptions, setMasterOptions] = useState(() => (dataService.loadCachedMasterOptions ? dataService.loadCachedMasterOptions() : { companies: [], developers: [] }));
+  const [nextRequestNo, setNextRequestNo] = useState(() => (dataService.getNextRequestNumber ? dataService.getNextRequestNumber() : 'SM-0008'));
+  const [isLoading, setIsLoading] = useState(() => {
+    const cached = dataService.loadCachedRequests ? dataService.loadCachedRequests() : [];
+    return cached.length === 0;
+  });
 
   // Modals
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
@@ -65,24 +69,22 @@ export default function App() {
     return allowed ? allowed.id : 'requests';
   }, []);
 
-  // Fetch initial data
+  // Fetch initial fresh data in 1 single fast roundtrip
   const loadData = useCallback(async () => {
     try {
-      setIsLoading(true);
-      const [reqList, options, nextNo] = await Promise.all([
-        dataService.listRequests(),
-        dataService.getMasterOptions(),
-        dataService.peekNextRequestNumber()
-      ]);
-      setRequests(reqList);
-      setMasterOptions(options);
-      setNextRequestNo(nextNo);
+      const data = await dataService.loadAllData();
+      if (data.requests) setRequests(data.requests);
+      if (data.masterOptions) setMasterOptions(data.masterOptions);
+      if (data.nextRequestNo) setNextRequestNo(data.nextRequestNo);
+      if (data.users && data.users.length > 0) {
+        authService.syncUsersFromSheet(data.users);
+      }
     } catch (err) {
-      showToast(`Error loading data: ${err.message}`, 'error');
+      console.warn('Background data sync check:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [showToast]);
+  }, []);
 
   useEffect(() => {
     if (currentUser) {
@@ -98,6 +100,7 @@ export default function App() {
       const res = await dataService.forceSyncFromSheets();
       if (res.requests) {
         setRequests(res.requests);
+        setNextRequestNo(dataService.getNextRequestNumber(res.requests));
       }
       if (res.masterOptions) {
         setMasterOptions(res.masterOptions);
@@ -105,8 +108,6 @@ export default function App() {
       if (res.users) {
         authService.syncUsersFromSheet(res.users);
       }
-      const nextNo = await dataService.peekNextRequestNumber();
-      setNextRequestNo(nextNo);
       showToast('Live data synced from Google Sheet!', 'success');
     } catch (err) {
       showToast(`Sync failed: ${err.message}`, 'error');
@@ -116,18 +117,22 @@ export default function App() {
   }, [showToast]);
 
   // Automatic Background Two-Way Sync (Google Sheets → React)
+  // Protected against overlapping requests and paused on inactive tabs
   useEffect(() => {
     let isCancelled = false;
+    let isSyncingActive = false;
 
     const performSyncCheck = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
-      if (!isGoogleSheetsConnected() || !currentUser) return;
+      if (!isGoogleSheetsConnected() || !currentUser || isSyncingActive) return;
 
       try {
+        isSyncingActive = true;
         const syncResult = await dataService.checkSync();
         if (!isCancelled && syncResult.hasChanges) {
           if (syncResult.requests) {
             setRequests(syncResult.requests);
+            setNextRequestNo(dataService.getNextRequestNumber(syncResult.requests));
           }
           if (syncResult.masterOptions) {
             setMasterOptions(syncResult.masterOptions);
@@ -135,15 +140,15 @@ export default function App() {
           if (syncResult.users) {
             authService.syncUsersFromSheet(syncResult.users);
           }
-          const nextNo = await dataService.peekNextRequestNumber();
-          if (!isCancelled) setNextRequestNo(nextNo);
         }
       } catch (err) {
-        console.warn('Background sync check blip:', err);
+        console.warn('Background sync check note:', err);
+      } finally {
+        isSyncingActive = false;
       }
     };
 
-    const intervalMs = GOOGLE_SHEETS_CONFIG.realTimeSyncIntervalMs || 3500;
+    const intervalMs = GOOGLE_SHEETS_CONFIG.realTimeSyncIntervalMs || 12000;
     const intervalId = setInterval(performSyncCheck, intervalMs);
 
     const handleFocus = () => {
@@ -215,54 +220,58 @@ export default function App() {
 
   // Handler: Create Request
   const handleCreateRequest = async (formData) => {
-    const newReq = await dataService.createRequest(formData);
-    const updated = await dataService.listRequests();
-    const nextNo = await dataService.peekNextRequestNumber();
+    const res = await dataService.createRequest(formData);
+    const updated = res.allRequests || (await dataService.listRequests());
+    const nextNo = dataService.getNextRequestNumber(updated);
     setRequests(updated);
     setNextRequestNo(nextNo);
-    showToast(`Request ${newReq.requestNo} created successfully! Added to Introduce System: Pending.`, 'success');
+    const targetNo = res.requestNo || res.newReq?.requestNo || 'New';
+    showToast(`Request ${targetNo} created successfully! Added to Introduce System: Pending.`, 'success');
   };
 
   // Handler: Introduce System Approve
   const handleApproveIntroduction = async (requestId, introData) => {
-    const updatedReq = await dataService.approveIntroduction(requestId, introData);
-    const updated = await dataService.listRequests();
+    const res = await dataService.approveIntroduction(requestId, introData);
+    const updated = res.allRequests || (await dataService.listRequests());
     setRequests(updated);
-    showToast(`Introduction approved for ${updatedReq.requestNo}. Transferred to Create System: Pending.`, 'success');
+    const targetNo = res.requestNo || res.updatedReq?.requestNo || requestId;
+    showToast(`Introduction approved for ${targetNo}. Transferred to Create System: Pending.`, 'success');
   };
 
   // Handler: Update Development Progress
   const handleUpdateProgress = async (requestId, devData) => {
-    const updatedReq = await dataService.updateDevelopmentProgress(requestId, devData);
-    const updated = await dataService.listRequests();
+    const res = await dataService.updateDevelopmentProgress(requestId, devData);
+    const updated = res.allRequests || (await dataService.listRequests());
     setRequests(updated);
+    const targetReq = res.updatedReq || res;
 
     if (devData.workStatus === WORK_STATUS.COMPLETED) {
-      if (updatedReq.currentRevisionNo) {
-        showToast(`Revision completed (100%) for ${updatedReq.requestNo}. Transferred to Update MIS System: Pending.`, 'success');
+      if (targetReq.currentRevisionNo) {
+        showToast(`Revision completed (100%) for ${targetReq.requestNo}. Transferred to Update MIS System: Pending.`, 'success');
       } else {
-        showToast(`Development completed (100%) for ${updatedReq.requestNo}. Sent to Testing System: Pending.`, 'success');
+        showToast(`Development completed (100%) for ${targetReq.requestNo}. Sent to Testing System: Pending.`, 'success');
       }
     } else if (devData.workStatus === WORK_STATUS.ON_HOLD) {
       const dateMsg = devData.extendedTargetDate ? ` (Target date extended to ${devData.extendedTargetDate})` : '';
-      showToast(`Request ${updatedReq.requestNo} placed On Hold${dateMsg}.`, 'error');
+      showToast(`Request ${targetReq.requestNo} placed On Hold${dateMsg}.`, 'error');
     } else {
-      showToast(`Progress updated to ${devData.progressPercent}% for ${updatedReq.requestNo}.`, 'success');
+      showToast(`Progress updated to ${devData.progressPercent}% for ${targetReq.requestNo}.`, 'success');
     }
   };
 
   // Handler: Testing Decision
   const handleSubmitTestingDecision = async (requestId, testData) => {
-    const updatedReq = await dataService.submitTestingDecision(requestId, testData);
-    const updated = await dataService.listRequests();
+    const res = await dataService.submitTestingDecision(requestId, testData);
+    const updated = res.allRequests || (await dataService.listRequests());
     setRequests(updated);
+    const targetReq = res.updatedReq || res;
 
     if (testData.decision === 'Approved') {
-      showToast(`Testing Approved for ${updatedReq.requestNo}. Transferred to Update MIS System: Pending.`, 'success');
+      showToast(`Testing Approved for ${targetReq.requestNo}. Transferred to Update MIS System: Pending.`, 'success');
     } else {
       const dateMsg = testData.extendedTargetDate ? ` (Target date extended to ${testData.extendedTargetDate})` : '';
       showToast(
-        `Testing Rejected for ${updatedReq.requestNo}. Revision ${updatedReq.currentRevisionNo} generated${dateMsg}. Transferred to Revise System: Pending.`,
+        `Testing Rejected for ${targetReq.requestNo}. Revision ${targetReq.currentRevisionNo} generated${dateMsg}. Transferred to Revise System: Pending.`,
         'error'
       );
     }
@@ -270,10 +279,11 @@ export default function App() {
 
   // Handler: Complete MIS Update
   const handleCompleteMisUpdate = async (requestId, misData) => {
-    const updatedReq = await dataService.completeMisUpdate(requestId, misData);
-    const updated = await dataService.listRequests();
+    const res = await dataService.completeMisUpdate(requestId, misData);
+    const updated = res.allRequests || (await dataService.listRequests());
     setRequests(updated);
-    showToast(`MIS updated for ${updatedReq.requestNo}. Request is now Closed!`, 'success');
+    const targetReq = res.updatedReq || res;
+    showToast(`MIS updated for ${targetReq.requestNo}. Request is now Closed!`, 'success');
   };
 
   // Handler: Reset Sample Data
