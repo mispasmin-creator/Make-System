@@ -55,8 +55,17 @@ export const SAMPLE_DEVELOPERS = [
 export const TIMEZONE = 'Asia/Kolkata';
 
 // Navigation Items
+export const REPAIR_NAV_ITEMS = [
+  { id: 'repair-new', label: 'New Issue Request', view: 'new' },
+  { id: 'repair-system', label: 'Approval For Repair', view: 'records' },
+  { id: 'repair-problem', label: 'Resolve Problem', view: 'records' }
+];
+
 export const NAV_ITEMS = [
+  { id: 'repair-system', label: 'Repair System', icon: 'wrench' },
   { id: 'requests', label: 'System Requests', icon: 'file-text' },
+  { id: 'technical-new', label: 'Raise Technical Help', icon: 'life-buoy' },
+  { id: 'technical-all', label: 'All Technical Tickets', icon: 'clipboard-list' },
   { id: 'introduce', label: 'Introduce System', icon: 'handshake' },
   { id: 'create', label: 'Create System', icon: 'code' },
   { id: 'revise', label: 'Revise System', icon: 'refresh-cw' },

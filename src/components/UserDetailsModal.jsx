@@ -34,7 +34,7 @@ export function UserDetailsModal({
   if (!user) return null;
 
   const isActive = user.status === USER_STATUS.ACTIVE;
-  const isAdmin = user.role === USER_ROLES.ADMIN;
+  const isAdmin = user.role === USER_ROLES.ADMIN && !user.technicalOnly;
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
@@ -218,7 +218,7 @@ export function UserDetailsModal({
               Permitted Workflow Stages
             </span>
             <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
-              {isAdmin ? 'Full Admin Access (View & Edit)' : 'View Only (Edit Restricted to Admin)'}
+              {isAdmin ? 'Full Admin Access (View & Edit)' : 'Stage-wise View / Update (User editing: Admin only)'}
             </span>
           </div>
 
@@ -228,7 +228,7 @@ export function UserDetailsModal({
                 <tr>
                   <th className="py-2.5 px-3.5">Stage</th>
                   <th className="py-2.5 px-3 text-center w-36">View Access</th>
-                  <th className="py-2.5 px-3 text-center w-36">Edit & Action Rights</th>
+                  <th className="py-2.5 px-3 text-center w-36">Update / Submit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -263,7 +263,7 @@ export function UserDetailsModal({
                           </span>
                         ) : (
                           <span className="text-[11px] font-medium text-slate-400 bg-slate-50 px-2.5 py-0.5 rounded-lg border border-slate-200/60">
-                            Admin Only
+                            {perm.update ? 'Update Allowed' : 'View Only'}
                           </span>
                         )}
                       </td>

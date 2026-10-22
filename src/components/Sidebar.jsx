@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   ClipboardList,
   Handshake,
@@ -8,9 +7,13 @@ import {
   Database,
   ShieldCheck,
   LogOut,
-  User
+  LifeBuoy,
+  Wrench,
+  FilePlus2,
+  ClipboardCheck,
+  BadgeCheck
 } from 'lucide-react';
-import { NAV_ITEMS } from '../constants/stages';
+import { NAV_ITEMS, REPAIR_NAV_ITEMS } from '../constants/stages';
 import { authService } from '../services/authService';
 
 const ICON_MAP = {
@@ -20,8 +23,12 @@ const ICON_MAP = {
   revise: RefreshCw,
   testing: CheckCircle2,
   mis: Database,
-  admin: ShieldCheck
+  admin: ShieldCheck,
+  'repair-system': Wrench
+  , 'technical-new': LifeBuoy, 'technical-all': ClipboardList
 };
+
+const REPAIR_ICONS = { 'repair-new': FilePlus2, 'repair-system': ClipboardCheck, 'repair-problem': BadgeCheck };
 
 export function Sidebar({
   activePage,
@@ -69,8 +76,11 @@ export function Sidebar({
         </div>
 
         {/* Navigation items */}
-        <nav className="p-3 space-y-1.5 flex-1 overflow-y-auto">
+        <nav className="p-3 space-y-1.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          {!isCollapsed && visibleNavItems.some(item => ['requests','introduce','create','revise','testing','mis'].includes(item.id)) && <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Make System</div>}
           {visibleNavItems.map((item) => {
+            if (item.id === 'repair-system') return null;
+            if (item.id === 'technical-new' || item.id === 'technical-all') return null;
             const isActive = activePage === item.id;
             const Icon = ICON_MAP[item.id] || ClipboardList;
 
@@ -121,6 +131,25 @@ export function Sidebar({
             );
           })}
 
+          {visibleNavItems.some(item => item.id.startsWith('technical-')) && <div className="pt-3 mt-2 border-t border-slate-100">
+            {!isCollapsed && <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-indigo-400">Technical Help</div>}
+            {visibleNavItems.filter(item => item.id === 'technical-new' || item.id === 'technical-all').map((item) => {
+              const isActive = activePage === item.id;
+              const Icon = ICON_MAP[item.id] || ClipboardList;
+              return (
+                <button key={item.id} type="button" onClick={() => { onSelectPage(item.id); if (onCloseMobile) onCloseMobile(); }} title={isCollapsed ? item.label : undefined}
+                  className={`w-full flex items-center px-3 py-2.5 text-xs rounded-xl border transition-colors duration-150 cursor-pointer ${isActive ? 'bg-indigo-50/90 text-indigo-700 shadow-xs border-indigo-100/90 font-semibold' : 'border-transparent text-slate-600 hover:bg-slate-50/80 hover:text-slate-900 font-semibold'}`}>
+                  <div className="flex items-center gap-3 min-w-0"><Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />{!isCollapsed && <span className="truncate">{item.label}</span>}</div>
+                </button>
+              );
+            })}
+          </div>}
+
+          {REPAIR_NAV_ITEMS.some(item => authService.canAccessStage(currentUser, item.id)) && <div className="pt-3 mt-2 border-t border-slate-100">
+            {!isCollapsed && <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-indigo-400">System Repair FMS</div>}
+            {REPAIR_NAV_ITEMS.filter(item => authService.canAccessStage(currentUser, item.id)).map(item => { const Icon = REPAIR_ICONS[item.id]; return <button key={item.id} type="button" title={item.label} onClick={() => { onSelectPage(item.id); onCloseMobile?.(); }} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs rounded-xl border font-semibold ${activePage === item.id ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'border-transparent text-slate-600 hover:bg-slate-50'}`}><Icon className="w-4 h-4 shrink-0" />{!isCollapsed && <span className="truncate">{item.label}</span>}</button>; })}
+          </div>}
+
           {/* Admin Master Navigation Item (Only for Authorized Administrators) */}
           {isAdmin && (
             <div className="pt-2 mt-2 border-t border-slate-100">
@@ -154,8 +183,8 @@ export function Sidebar({
         {/* Sidebar Footer User Info & Logout */}
         <div className="p-3 border-t border-slate-100/80 bg-slate-50/40 shrink-0">
           {currentUser && (
-            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} gap-2`}>
-              <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`flex items-center ${isCollapsed ? 'flex-col justify-center' : 'justify-between'} gap-2`}>
+              <div title={`${currentUser.fullName || 'User'} (${currentUser.role})`} className={`flex items-center min-w-0 ${isCollapsed ? 'justify-center' : 'gap-2.5 flex-1'}`}>
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
                   {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
                 </div>
@@ -175,7 +204,7 @@ export function Sidebar({
                 <button
                   type="button"
                   onClick={onLogout}
-                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                  className="shrink-0 p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                   title="Sign out of Make System"
                   aria-label="Logout"
                 >

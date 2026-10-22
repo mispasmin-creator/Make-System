@@ -194,10 +194,10 @@ export function AdminMasterPage({ currentUser, showToast }) {
               onClick={handleManualSheetSync}
               disabled={isSyncing}
               className="bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-700 font-bold text-xs rounded-xl shadow-2xs px-3.5 py-2.5 inline-flex items-center gap-2 cursor-pointer transition-all hover:-translate-y-0.5 disabled:opacity-60"
-              title="Sync users with Google Sheet 'Login Page' tab"
+              title="Update Login Page access columns from current sheet data without deleting users"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
+              <span>{isSyncing ? 'Updating...' : 'Update Access Columns'}</span>
             </button>
 
             <button
@@ -441,6 +441,7 @@ export function AdminMasterPage({ currentUser, showToast }) {
 
       {/* User Create/Edit Modal */}
       <UserFormModal
+        key={`${isFormModalOpen}-${userToEdit?.id || 'new'}`}
         isOpen={isFormModalOpen}
         onClose={() => {
           setIsFormModalOpen(false);

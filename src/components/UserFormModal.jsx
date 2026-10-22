@@ -1,21 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
-  User,
-  Mail,
-  Shield,
-  Key,
-  Building,
   Check,
-  AlertCircle,
-  CheckSquare,
-  Square,
-  Sparkles,
-  Lock,
-  Layers
+  AlertCircle
 } from 'lucide-react';
 import { Modal } from './Modal';
 import {
   APP_STAGES,
+  SYSTEMS,
   USER_ROLES,
   USER_STATUS,
   getFullAdminPermissions
@@ -30,55 +21,20 @@ export function UserFormModal({
   const isEditing = Boolean(userToEdit);
 
   const [formData, setFormData] = useState({
-    fullName: '',
-    username: '',
-    employeeId: '',
-    department: '',
-    role: USER_ROLES.USER,
-    status: USER_STATUS.ACTIVE,
+    fullName: userToEdit?.fullName || '',
+    username: userToEdit?.username || '',
+    employeeId: userToEdit?.employeeId || '',
+    department: userToEdit?.department || '',
+    role: userToEdit?.role || USER_ROLES.USER,
+    status: userToEdit?.status || USER_STATUS.ACTIVE,
     password: ''
   });
 
-  const [permissions, setPermissions] = useState({});
+  const [permissions, setPermissions] = useState(() => userToEdit?.permissions || {});
+  const [systemAccess, setSystemAccess] = useState(() => Object.fromEntries(SYSTEMS.map(system => [system.id, userToEdit?.systemAccess?.[system.id] ?? system.stages.some(id => userToEdit?.permissions?.[id]?.view)])));
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Initialize or reset form
-  useEffect(() => {
-    if (isOpen) {
-      if (userToEdit) {
-        setFormData({
-          fullName: userToEdit.fullName || '',
-          username: userToEdit.username || '',
-          employeeId: userToEdit.employeeId || '',
-          department: userToEdit.department || '',
-          role: userToEdit.role || USER_ROLES.USER,
-          status: userToEdit.status || USER_STATUS.ACTIVE,
-          password: '' // empty means keep existing password
-        });
-        setPermissions(userToEdit.permissions || {});
-      } else {
-        setFormData({
-          fullName: '',
-          username: '',
-          employeeId: '',
-          department: 'Engineering',
-          role: USER_ROLES.USER,
-          status: USER_STATUS.ACTIVE,
-          password: ''
-        });
-        // Default permissions for new regular user (requests view by default)
-        const initialPerms = {};
-        APP_STAGES.forEach(s => {
-          initialPerms[s.id] = { view: false, edit: false, approve: false };
-        });
-        initialPerms.requests = { view: true, edit: false, approve: false };
-        setPermissions(initialPerms);
-      }
-      setErrors({});
-      setIsSubmitting(false);
-    }
-  }, [isOpen, userToEdit]);
 
   // When Role changes to Admin, automatically check all permissions
   const handleRoleChange = (newRole) => {
@@ -98,6 +54,7 @@ export function UserFormModal({
         ...prev,
         [stageId]: {
           view: !current,
+          update: false,
           edit: false,
           approve: false
         }
@@ -119,6 +76,7 @@ export function UserFormModal({
     });
 
     setPermissions(newPerms);
+    setSystemAccess(Object.fromEntries(SYSTEMS.map(system => [system.id, presetType === 'all'])));
   };
 
   const validate = () => {
@@ -147,8 +105,10 @@ export function UserFormModal({
       // Construct permissions: non-admins only receive view access; edit/approve is admin only
       const finalPerms = {};
       APP_STAGES.forEach(s => {
+        const enabled = isAdminRole || systemAccess[SYSTEMS.find(system => system.stages.includes(s.id)).id];
         finalPerms[s.id] = {
-          view: isAdminRole ? true : Boolean(permissions[s.id]?.view),
+          view: Boolean(enabled && (isAdminRole || permissions[s.id]?.view)),
+          update: Boolean(enabled && (isAdminRole || (permissions[s.id]?.view && permissions[s.id]?.update))),
           edit: isAdminRole,
           approve: isAdminRole
         };
@@ -162,7 +122,9 @@ export function UserFormModal({
         department: formData.department.trim(),
         role: formData.role,
         status: formData.status,
-        permissions: isAdminRole ? getFullAdminPermissions() : finalPerms
+        permissions: isAdminRole ? getFullAdminPermissions() : finalPerms,
+        systemAccess: Object.fromEntries(SYSTEMS.map(system => [system.id, isAdminRole || Boolean(systemAccess[system.id])])),
+        permittedStagesText: isAdminRole ? 'All Stages (Admin Full Access)' : `Stages: ${APP_STAGES.filter(stage => finalPerms[stage.id]?.view).map(stage => stage.label).join(', ') || 'None'}`
       };
 
       if (formData.password?.trim()) {
@@ -185,7 +147,7 @@ export function UserFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditing ? `Edit User: ${userToEdit.fullName}` : 'Create New User Account'}
+      title={isEditing ? `Edit User: ${userToEdit.fullName}` : 'Create User'}
       large
       footer={
         <>
@@ -308,8 +270,8 @@ export function UserFormModal({
               onChange={(e) => handleRoleChange(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl text-slate-800 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-100/60 focus:border-indigo-400 transition-all shadow-2xs cursor-pointer font-semibold"
             >
-              <option value={USER_ROLES.USER}>User (Stage-Restricted)</option>
-              <option value={USER_ROLES.ADMIN}>Admin (Full Access & Admin Master)</option>
+              <option value={USER_ROLES.USER}>User</option>
+              <option value={USER_ROLES.ADMIN}>Admin</option>
             </select>
           </div>
 
@@ -323,7 +285,7 @@ export function UserFormModal({
               className="w-full px-3.5 py-2.5 bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl text-slate-800 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-100/60 focus:border-indigo-400 transition-all shadow-2xs cursor-pointer font-semibold"
             >
               <option value={USER_STATUS.ACTIVE}>Active</option>
-              <option value={USER_STATUS.INACTIVE}>Inactive (Deactivated)</option>
+              <option value={USER_STATUS.INACTIVE}>Inactive</option>
             </select>
           </div>
         </div>
@@ -334,17 +296,9 @@ export function UserFormModal({
             <div>
               <div className="flex items-center gap-2">
                 <span className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  Stage-Wise Permissions ({activeStagesCount}/6 permitted)
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                  Edit Restricted to Admin
+                  Permissions ({activeStagesCount}/{APP_STAGES.length})
                 </span>
               </div>
-              <span className="text-[11px] text-slate-500 font-medium">
-                {formData.role === USER_ROLES.ADMIN 
-                  ? 'Administrators have unrestricted access to view, edit, and manage all stages.' 
-                  : 'Assign which application workflow stages this user can view and monitor.'}
-              </span>
             </div>
 
             {formData.role !== USER_ROLES.ADMIN && (
@@ -354,7 +308,7 @@ export function UserFormModal({
                   onClick={() => applyPreset('all')}
                   className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-semibold rounded-lg transition-colors cursor-pointer"
                 >
-                  Grant All Stages
+                  Select All Views
                 </button>
                 <button
                   type="button"
@@ -368,17 +322,20 @@ export function UserFormModal({
           </div>
 
           {/* Permissions Table Matrix */}
+          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+            {SYSTEMS.map(system => <label key={system.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700"><input type="checkbox" aria-label={`${system.label} system access`} disabled={formData.role === USER_ROLES.ADMIN} checked={formData.role === USER_ROLES.ADMIN || Boolean(systemAccess[system.id])} onChange={e => { const enabled = e.target.checked; setSystemAccess(prev => ({ ...prev, [system.id]: enabled })); if (!enabled) setPermissions(prev => ({ ...prev, ...Object.fromEntries(system.stages.map(id => [id, { view:false, update:false, edit:false, approve:false }])) })); }} />{system.label}</label>)}
+          </div>
           <div className="border border-slate-200/80 rounded-2xl overflow-hidden shadow-2xs bg-white">
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50/90 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
                 <tr>
-                  <th className="py-2.5 px-3.5">Workflow Stage</th>
-                  <th className="py-2.5 px-3 text-center w-36">Stage Access (View)</th>
-                  <th className="py-2.5 px-3 text-center w-32 text-slate-400 font-normal">Edit & Action</th>
+                  <th className="py-2.5 px-3.5">Stage</th>
+                  <th className="py-2.5 px-3 text-center w-36">View</th>
+                  <th className="py-2.5 px-3 text-center w-32">Update / Submit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {APP_STAGES.map((stg) => {
+                {APP_STAGES.filter(stage => formData.role === USER_ROLES.ADMIN || systemAccess[SYSTEMS.find(system => system.stages.includes(stage.id)).id]).map((stg) => {
                   const perm = permissions[stg.id] || { view: false };
                   const isAdminRole = formData.role === USER_ROLES.ADMIN;
                   const isChecked = isAdminRole || Boolean(perm.view);
@@ -387,7 +344,6 @@ export function UserFormModal({
                     <tr key={stg.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-2.5 px-3.5">
                         <span className="font-semibold text-slate-800 block text-xs">{stg.label}</span>
-                        <span className="text-[10px] text-slate-400 font-normal">{stg.description}</span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <label className="inline-flex items-center justify-center cursor-pointer p-1">
@@ -406,9 +362,7 @@ export function UserFormModal({
                             Admin Full Access
                           </span>
                         ) : (
-                          <span className="text-[10px] font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60">
-                            Admin Only
-                          </span>
+                          <input type="checkbox" aria-label={`${stg.label} update access`} disabled={!perm.view} checked={Boolean(perm.view && perm.update)} onChange={e => setPermissions(prev => ({ ...prev, [stg.id]: { ...prev[stg.id], update:e.target.checked, edit:false, approve:e.target.checked } }))} className="w-4 h-4 rounded border-slate-300 text-indigo-600 disabled:opacity-40" />
                         )}
                       </td>
                     </tr>

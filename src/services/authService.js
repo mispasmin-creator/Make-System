@@ -11,6 +11,8 @@
 
 import { isGoogleSheetsConnected } from '../config/integrationConfig';
 import { callGoogleAppsScript } from './dataService';
+import { SYSTEMS, normalizeAccess, hasStageAccess } from '../utils/accessPolicy.mjs';
+export { SYSTEMS };
 
 const STORAGE_KEY_USERS = 'make_system_users_v2';
 const STORAGE_KEY_SESSION = 'make_system_session_v2';
@@ -20,11 +22,16 @@ const userListeners = new Set();
 
 export const APP_STAGES = [
   { id: 'requests', label: 'System Requests', description: 'View, filter and register new system requests' },
+  { id: 'technical-new', label: 'Raise Technical Help', description: 'Submit a technical help ticket' },
+  { id: 'technical-all', label: 'All Technical Tickets', description: 'View and filter technical help tickets' },
   { id: 'introduce', label: 'Introduce System', description: 'Kickoff meetings and initial requirement discussions' },
   { id: 'create', label: 'Create System', description: 'Core software development progress and hold management' },
   { id: 'revise', label: 'Revise System', description: 'Post-QA defect resolutions and revision cycles' },
   { id: 'testing', label: 'Testing System', description: 'QA verification, approvals, and defect rationale logging' },
-  { id: 'mis', label: 'Update MIS System', description: 'Final MIS synchronization and request lifecycle closure' }
+  { id: 'mis', label: 'Update MIS System', description: 'Final MIS synchronization and request lifecycle closure' },
+  { id: 'repair-new', label: 'New Issue Request', description: 'Submit new repair issue requests', repairAction: true },
+  { id: 'repair-approval', label: 'Approval For Repair', description: 'Assess issues and submit repair approvals', repairAction: true },
+  { id: 'repair-work', label: 'Resolve Problem', description: 'Submit resolution remarks and complete repairs', repairAction: true }
 ];
 
 export const USER_ROLES = {
@@ -41,7 +48,7 @@ export const USER_STATUS = {
 export function getFullAdminPermissions() {
   const perms = {};
   APP_STAGES.forEach(s => {
-    perms[s.id] = { view: true, edit: true, approve: true };
+    perms[s.id] = { view: true, update: true, edit: true, approve: true };
   });
   return perms;
 }
@@ -139,22 +146,9 @@ export function loadLocalUsers() {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
       // Sanitize: regular users only have view permissions; edit/approve is admin only
-      return parsed.map(u => {
-        if (u.role !== USER_ROLES.ADMIN && u.permissions) {
-          const sanitized = {};
-          APP_STAGES.forEach(s => {
-            sanitized[s.id] = {
-              view: Boolean(u.permissions[s.id]?.view),
-              edit: false,
-              approve: false
-            };
-          });
-          return { ...u, permissions: sanitized };
-        }
-        return u;
-      });
+      return parsed.map(normalizeAccess);
     }
-  } catch (e) {
+  } catch {
     return SEED_USERS;
   }
   return SEED_USERS;
@@ -187,7 +181,7 @@ export function logAuditEvent(action, details, actor = 'System') {
     // Keep last 250 logs
     if (logs.length > 250) logs.pop();
     localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(logs));
-  } catch (e) {}
+  } catch { /* Audit storage may be unavailable. */ }
 }
 
 export function getAuditLogs() {
@@ -195,9 +189,17 @@ export function getAuditLogs() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_AUDIT);
     return raw ? JSON.parse(raw) : [];
-  } catch (e) {
+  } catch {
     return [];
   }
+}
+
+export function isTechnicalOnlyUser(user) {
+  if (!user) return false;
+  if (user.token || typeof user.technicalOnly === 'boolean') return Boolean(user.technicalOnly);
+  if (user.technicalOnly || String(user.password || '').startsWith('PMMPL')) return true;
+  const saved = loadLocalUsers().find(item => item.username === user.username);
+  return Boolean(saved?.technicalOnly || String(saved?.password || '').startsWith('PMMPL'));
 }
 
 export const authService = {
@@ -209,8 +211,13 @@ export const authService = {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_SESSION) || sessionStorage.getItem(STORAGE_KEY_SESSION);
       if (!raw) return null;
-      return JSON.parse(raw);
-    } catch (e) {
+      const session = JSON.parse(raw);
+      if (isGoogleSheetsConnected() && !session.token) return null;
+      const fresh = session.token ? null : loadLocalUsers().find(user => user.username === session.username);
+      const safe = normalizeAccess(fresh ? { ...session, ...fresh } : session);
+      delete safe.password;
+      return safe;
+    } catch {
       return null;
     }
   },
@@ -224,6 +231,14 @@ export const authService = {
 
     if (!query || !pass) {
       throw new Error('Please enter both username/email and password.');
+    }
+
+    if (isGoogleSheetsConnected()) {
+      const result = await callGoogleAppsScript('login', { username:query, password:pass });
+      if (!result.user || !result.token) throw new Error('Login API unavailable. Deploy the updated Apps Script.');
+      const session = { ...normalizeAccess(result.user), token:result.token };
+      (rememberMe ? localStorage : sessionStorage).setItem(STORAGE_KEY_SESSION, JSON.stringify(session));
+      return session;
     }
 
     const users = loadLocalUsers();
@@ -261,9 +276,11 @@ export const authService = {
       employeeId: user.employeeId || '',
       role: user.role,
       department: user.department || '',
-      permissions: user.permissions || {},
+      permissions: normalizeAccess(user).permissions,
+      systemAccess: normalizeAccess(user).systemAccess,
       status: user.status,
-      loginAt: nowISO
+      loginAt: nowISO,
+      technicalOnly: String(user.password || '').startsWith('PMMPL')
     };
 
     if (rememberMe) {
@@ -293,34 +310,31 @@ export const authService = {
    * Check if a user has permission for a specific stage and action
    */
   canAccessStage(user, stageId, action = 'view') {
-    if (!user || user.status !== USER_STATUS.ACTIVE) return false;
-    // Admins have full access to everything (view, edit, approve, etc.)
-    if (user.role === USER_ROLES.ADMIN) return true;
+    return hasStageAccess({ ...user, technicalOnly: isTechnicalOnlyUser(user) }, stageId, action);
+  },
 
-    // Edit, create and approve actions are strictly reserved for Admins
-    if (action === 'edit' || action === 'approve' || action === 'create') {
-      return false;
-    }
-
-    // Regular users can only have View access if permitted
-    const perms = user.permissions || {};
-    const stagePerm = perms[stageId];
-    if (!stagePerm) return false;
-
-    return Boolean(stagePerm.view);
+  async refreshSession() {
+    const current = this.getCurrentUser();
+    if (!current?.token || !isGoogleSheetsConnected()) return current;
+    const result = await callGoogleAppsScript('getSession', {}, 'GET');
+    if (!result.user) throw new Error('Session unavailable. Please log in again.');
+    const session = { ...normalizeAccess(result.user), token:current.token };
+    (localStorage.getItem(STORAGE_KEY_SESSION) ? localStorage : sessionStorage).setItem(STORAGE_KEY_SESSION, JSON.stringify(session));
+    return session;
   },
 
   /**
    * Check if user is an Administrator
    */
   isAdmin(user) {
-    return Boolean(user && user.role === USER_ROLES.ADMIN && user.status === USER_STATUS.ACTIVE);
+    return Boolean(user && !isTechnicalOnlyUser(user) && user.role === USER_ROLES.ADMIN && user.status === USER_STATUS.ACTIVE);
   },
 
   /**
    * List all managed users (fetches live from Google Sheets if connected)
    */
   async listUsers(forceLive = false) {
+    if (!this.isAdmin(this.getCurrentUser())) throw new Error('Only Admin can manage users.');
     if (isGoogleSheetsConnected()) {
       try {
         const res = await callGoogleAppsScript('getUsers', {}, 'GET');
@@ -328,12 +342,11 @@ export const authService = {
           saveLocalUsers(res.users);
           return res.users;
         } else if (res && Array.isArray(res.users) && res.users.length === 0) {
-          // If sheet is empty, populate it with seed users
-          const local = loadLocalUsers();
-          await callGoogleAppsScript('saveUsers', { users: local }, 'POST');
-          return local;
+          saveLocalUsers([]);
+          return [];
         }
       } catch (err) {
+        if (forceLive) throw err;
         console.warn('Live Google Sheets getUsers failed, fallback to local cache:', err);
       }
     }
@@ -344,11 +357,12 @@ export const authService = {
    * Sync all local users to Google Sheets (Initial or Manual Sync)
    */
   async syncAllUsersToSheet() {
+    if (!this.isAdmin(this.getCurrentUser())) throw new Error('Only Admin can manage users.');
     if (!isGoogleSheetsConnected()) {
       throw new Error('Google Sheets is not connected. Please connect Google Apps Script Web App URL first.');
     }
-    const users = loadLocalUsers();
-    return await callGoogleAppsScript('saveUsers', { users }, 'POST');
+    // Read current sheet users on the server before extending permission columns.
+    return await callGoogleAppsScript('setupLoginPermissions', {}, 'POST');
   },
 
   /**
@@ -378,6 +392,7 @@ export const authService = {
    * Create a new User (Saves locally & syncs to Google Sheets "Login Page")
    */
   async createUser(userData, actor = 'System Administrator') {
+    if (!this.isAdmin(this.getCurrentUser())) throw new Error('Only Admin can manage users.');
     const users = loadLocalUsers();
     const cleanUsername = String(userData.username || '').trim().toLowerCase();
 
@@ -401,6 +416,7 @@ export const authService = {
       role: userData.role || USER_ROLES.USER,
       status: userData.status || USER_STATUS.ACTIVE,
       department: userData.department?.trim() || 'General',
+      systemAccess: userData.systemAccess,
       permissions: userData.role === USER_ROLES.ADMIN 
         ? getFullAdminPermissions() 
         : (userData.permissions || {}),
@@ -408,6 +424,7 @@ export const authService = {
       lastLoginAt: null
     };
 
+    if (isGoogleSheetsConnected()) await callGoogleAppsScript('createUser', { userData:newUser });
     const updated = [newUser, ...users];
     saveLocalUsers(updated);
 
@@ -417,14 +434,6 @@ export const authService = {
       actor
     );
 
-    // Sync to Google Sheets "Login Page" tab
-    if (isGoogleSheetsConnected()) {
-      try {
-        await callGoogleAppsScript('createUser', { userData: newUser }, 'POST');
-      } catch (err) {
-        console.warn('Google Sheets createUser sync failed:', err);
-      }
-    }
 
     return newUser;
   },
@@ -433,6 +442,7 @@ export const authService = {
    * Update existing user details or permissions (Saves locally & syncs to Google Sheets)
    */
   async updateUser(userId, updates, actor = 'System Administrator') {
+    if (!this.isAdmin(this.getCurrentUser())) throw new Error('Only Admin can manage users.');
     const users = loadLocalUsers();
     const index = users.findIndex(u => u.id === userId);
     if (index === -1) throw new Error('User not found.');
@@ -457,6 +467,7 @@ export const authService = {
       lastUpdatedAt: new Date().toISOString()
     };
 
+    if (isGoogleSheetsConnected()) await callGoogleAppsScript('updateUser', { userId, userData:updatedUser });
     users[index] = updatedUser;
     saveLocalUsers(users);
 
@@ -469,6 +480,7 @@ export const authService = {
         email: updatedUser.email,
         role: updatedUser.role,
         permissions: updatedUser.permissions,
+        systemAccess: updatedUser.systemAccess,
         status: updatedUser.status
       };
       if (localStorage.getItem(STORAGE_KEY_SESSION)) {
@@ -484,14 +496,6 @@ export const authService = {
       actor
     );
 
-    // Sync to Google Sheets "Login Page" tab
-    if (isGoogleSheetsConnected()) {
-      try {
-        await callGoogleAppsScript('updateUser', { userId, userData: updatedUser }, 'POST');
-      } catch (err) {
-        console.warn('Google Sheets updateUser sync failed:', err);
-      }
-    }
 
     return updatedUser;
   },
@@ -524,6 +528,7 @@ export const authService = {
    * Delete a User (Removes locally & syncs to Google Sheets "Login Page")
    */
   async deleteUser(userId, actor = 'System Administrator') {
+    if (!this.isAdmin(this.getCurrentUser())) throw new Error('Only Admin can manage users.');
     const users = loadLocalUsers();
     const user = users.find(u => u.id === userId);
     if (!user) throw new Error('User not found.');
@@ -532,19 +537,13 @@ export const authService = {
       throw new Error('The primary System Administrator account cannot be deleted.');
     }
 
+    if (isGoogleSheetsConnected()) {
+      await callGoogleAppsScript('deleteUser', { userId, username: user.username }, 'POST');
+    }
     const filtered = users.filter(u => u.id !== userId);
     saveLocalUsers(filtered);
 
     logAuditEvent('User Deleted', `Deleted user account "${user.username}" (${user.fullName})`, actor);
-
-    // Sync deletion to Google Sheets "Login Page" tab
-    if (isGoogleSheetsConnected()) {
-      try {
-        await callGoogleAppsScript('deleteUser', { userId, username: user.username }, 'POST');
-      } catch (err) {
-        console.warn('Google Sheets deleteUser sync failed:', err);
-      }
-    }
 
     return true;
   }

@@ -297,7 +297,7 @@ export function LoginPage({ onLoginSuccess }) {
                   margin: 0
                 }}
               >
-                Login to continue to Make System
+                Sign in to your permitted systems and stages
               </p>
             </div>
 

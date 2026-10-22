@@ -18,9 +18,16 @@ import { UpdateMisSystemPage } from './pages/UpdateMisSystemPage';
 import { AdminMasterPage } from './pages/AdminMasterPage';
 import { LoginPage } from './pages/LoginPage';
 import { AccessDeniedPage } from './pages/AccessDeniedPage';
+import { TechnicalHelpPage } from './pages/TechnicalHelpPage';
+import { TechnicalTicketsPage } from './pages/TechnicalTicketsPage';
+import { RepairSystemPage } from './pages/RepairSystemPage';
+import { RepairRecordsPage } from './pages/RepairRecordsPage';
+import { REPAIR_NAV_ITEMS } from './constants/stages';
 
 import { dataService } from './services/dataService';
-import { authService, APP_STAGES } from './services/authService';
+import { repairService, getRepairMode } from './services/repairService';
+import { listTechnicalTickets } from './services/technicalHelpService';
+import { authService, APP_STAGES, SYSTEMS } from './services/authService';
 import { STAGES, WORK_STATUS } from './constants/stages';
 import { calculateDueStatus } from './utils/dateUtils';
 import { GOOGLE_SHEETS_CONFIG, isGoogleSheetsConnected } from './config/integrationConfig';
@@ -30,6 +37,7 @@ export default function App() {
   const [activePage, setActivePage] = useState('requests');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [technicalRefreshKey, setTechnicalRefreshKey] = useState(0);
 
   // Instant 0ms initial load directly from local cache
   const [requests, setRequests] = useState(() => (dataService.loadCachedRequests ? dataService.loadCachedRequests() : []));
@@ -62,15 +70,17 @@ export default function App() {
 
   const getFirstAllowedStage = useCallback((user) => {
     if (!user) return 'requests';
-    if (user.role === 'Admin') return 'requests';
+    if (authService.isAdmin(user)) return 'requests';
     const allowed = APP_STAGES.find(s => authService.canAccessStage(user, s.id));
-    return allowed ? allowed.id : 'requests';
+    return allowed ? ({ 'repair-approval':'repair-system', 'repair-work':'repair-problem' }[allowed.id] || allowed.id) : 'requests';
   }, []);
 
   // Fetch initial fresh data in 1 single fast roundtrip
   const loadData = useCallback(async () => {
     try {
-      const data = await dataService.loadAllData();
+      const user = authService.getCurrentUser();
+      const makeAccess = SYSTEMS[0].stages.some(id => authService.canAccessStage(user, id));
+      const data = makeAccess ? await dataService.loadAllData() : { masterOptions:await dataService.getMasterOptions() };
       if (data.requests) setRequests(data.requests);
       if (data.masterOptions) setMasterOptions(data.masterOptions);
       if (data.nextRequestNo) setNextRequestNo(data.nextRequestNo);
@@ -95,7 +105,13 @@ export default function App() {
   const handleForceSync = useCallback(async () => {
     try {
       setIsSyncing(true);
-      const res = await dataService.forceSyncFromSheets();
+      const user = await authService.refreshSession();
+      setCurrentUser(user);
+      const [res] = await Promise.all([
+        SYSTEMS[0].stages.some(id => authService.canAccessStage(user,id)) ? dataService.forceSyncFromSheets() : dataService.getMasterOptions().then(masterOptions => ({masterOptions})),
+        SYSTEMS[2].stages.some(id => authService.canAccessStage(user,id)) && getRepairMode() !== 'unconfigured' ? repairService.listIssues() : Promise.resolve(),
+        authService.canAccessStage(user,'technical-all') ? listTechnicalTickets() : Promise.resolve()
+      ]);
       if (res.requests) {
         setRequests(res.requests);
         setNextRequestNo(dataService.getNextRequestNumber(res.requests));
@@ -126,6 +142,9 @@ export default function App() {
 
       try {
         isSyncingActive = true;
+        const fresh = await authService.refreshSession();
+        if (!isCancelled && JSON.stringify([fresh?.permissions,fresh?.systemAccess,fresh?.status,fresh?.role]) !== JSON.stringify([currentUser.permissions,currentUser.systemAccess,currentUser.status,currentUser.role])) setCurrentUser(fresh);
+        if (!SYSTEMS[0].stages.some(id => authService.canAccessStage(fresh,id))) return;
         const syncResult = await dataService.checkSync();
         if (!isCancelled && syncResult.hasChanges) {
           if (syncResult.requests) {
@@ -381,16 +400,21 @@ export default function App() {
                     developerOptions={masterOptions.developers}
                     onOpenNewRequest={() => setIsNewRequestModalOpen(true)}
                     onViewDetails={(req) => setDetailsRequest(req)}
-                    canCreate={authService.isAdmin(currentUser)}
+                    canCreate={authService.canAccessStage(currentUser, 'requests', 'update')}
                   />
                 )}
+
+                {activePage === 'technical-new' && (authService.canAccessStage(currentUser, 'technical-new', 'update') ? <TechnicalHelpPage currentUser={currentUser} companyOptions={masterOptions.companies} onCancel={() => setActivePage(getFirstAllowedStage(currentUser))} onCreated={() => setTechnicalRefreshKey(v => v + 1)} /> : <div className="p-6 text-sm text-slate-500">View only. Submission access is not enabled.</div>)}
+                {activePage === 'technical-all' && <TechnicalTicketsPage refreshKey={technicalRefreshKey} canSubmit={authService.canAccessStage(currentUser, 'technical-all', 'update')} />}
+                {['repair-system', 'repair-problem'].includes(activePage) && <RepairRecordsPage key={activePage} stage={activePage === 'repair-problem' ? 'repair' : 'approval'} currentUser={currentUser} onNavigate={setActivePage} />}
+                {REPAIR_NAV_ITEMS.filter(item => item.view !== 'records').map(item => activePage === item.id && <RepairSystemPage key={item.id} view={item.view} onNavigate={setActivePage} currentUser={currentUser} companyOptions={masterOptions.companies} />)}
 
                 {activePage === 'introduce' && (
                   <IntroduceSystemPage
                     requests={requests}
                     onApproveIntroduction={handleApproveIntroduction}
                     onViewDetails={(req) => setDetailsRequest(req)}
-                    canApprove={authService.isAdmin(currentUser)}
+                    canApprove={authService.canAccessStage(currentUser, 'introduce', 'update')}
                   />
                 )}
 
@@ -399,7 +423,7 @@ export default function App() {
                     requests={requests}
                     onUpdateProgress={handleUpdateProgress}
                     onViewDetails={(req) => setDetailsRequest(req)}
-                    canEdit={authService.isAdmin(currentUser)}
+                    canEdit={authService.canAccessStage(currentUser, 'create', 'update')}
                   />
                 )}
 
@@ -408,7 +432,7 @@ export default function App() {
                     requests={requests}
                     onUpdateProgress={handleUpdateProgress}
                     onViewDetails={(req) => setDetailsRequest(req)}
-                    canEdit={authService.isAdmin(currentUser)}
+                    canEdit={authService.canAccessStage(currentUser, 'revise', 'update')}
                   />
                 )}
 
@@ -417,7 +441,7 @@ export default function App() {
                     requests={requests}
                     onSubmitDecision={handleSubmitTestingDecision}
                     onViewDetails={(req) => setDetailsRequest(req)}
-                    canApprove={authService.isAdmin(currentUser)}
+                    canApprove={authService.canAccessStage(currentUser, 'testing', 'update')}
                   />
                 )}
 
@@ -426,7 +450,7 @@ export default function App() {
                     requests={requests}
                     onSubmitMisUpdate={handleCompleteMisUpdate}
                     onViewDetails={(req) => setDetailsRequest(req)}
-                    canEdit={authService.isAdmin(currentUser)}
+                    canEdit={authService.canAccessStage(currentUser, 'mis', 'update')}
                   />
                 )}
               </>

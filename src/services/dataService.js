@@ -681,11 +681,16 @@ const delay = (ms = 40) => new Promise(res => setTimeout(res, ms));
  * Uses text/plain payload to prevent browser CORS preflight blocking
  */
 export async function callGoogleAppsScript(action, payload = {}, method = 'POST') {
+  let token = '';
+  try { token = JSON.parse(localStorage.getItem('make_system_session_v2') || sessionStorage.getItem('make_system_session_v2') || '{}').token || ''; } catch { /* No active session. */ }
+  payload = { ...payload, token };
   const url = getGoogleAppsScriptUrl();
   if (!url) throw new Error('Google Apps Script URL is not configured.');
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  // Apps Script cold starts, spreadsheet locks and redirects can exceed 8 seconds.
+  const timeoutMs = method === 'GET' ? 60000 : 120000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     if (method === 'GET') {
@@ -720,6 +725,11 @@ export async function callGoogleAppsScript(action, payload = {}, method = 'POST'
     if (data.error) throw new Error(data.error);
     return data;
   } catch (err) {
+    if (controller.signal.aborted || err?.name === 'AbortError' || err?.name === 'TimeoutError') {
+      throw new Error(method === 'GET'
+        ? 'Google Sheet response timed out. Please refresh and try again.'
+        : 'Google Sheet save response timed out. The save may have completed; refresh records before retrying.');
+    }
     console.error(`Google Apps Script [${action}] failed:`, err);
     throw err;
   } finally {

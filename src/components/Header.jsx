@@ -12,8 +12,7 @@ import {
   Database,
   ExternalLink,
   ShieldCheck,
-  Trash2,
-  LogOut
+  Trash2
 } from 'lucide-react';
 import {
   isGoogleSheetsConnected,
@@ -22,7 +21,6 @@ import {
   getIntegrationStatusSummary,
   GOOGLE_SHEETS_CONFIG
 } from '../config/integrationConfig';
-import { CURRENT_USER } from '../constants/stages';
 import { Modal } from './Modal';
 import { dataService } from '../services/dataService';
 
@@ -34,8 +32,6 @@ export function Header({
   onNavigateTo,
   onRefreshData,
   showToast,
-  currentUser,
-  onLogout,
   isSyncing,
   onForceSync
 }) {
@@ -222,36 +218,6 @@ export function Header({
           )}
         </div>
 
-        {/* Right side: User Badge */}
-        <div className="flex items-center gap-3">
-          <div
-            className="flex items-center gap-2.5"
-            title={currentUser ? `${currentUser.fullName} (${currentUser.role})` : 'User Profile'}
-          >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white font-bold text-xs flex items-center justify-center shadow-xs shadow-indigo-300">
-              {currentUser?.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
-            </div>
-            <div className="hidden lg:block text-left leading-tight">
-              <span className="block text-xs font-bold text-slate-800">
-                {currentUser?.fullName || 'User'}
-              </span>
-              <span className="block text-[10px] text-slate-400 font-medium">
-                {currentUser?.role === 'Admin' ? 'System Administrator' : `${currentUser?.department || 'User'}`}
-              </span>
-            </div>
-
-            {onLogout && (
-              <button
-                type="button"
-                onClick={onLogout}
-                className="ml-1 p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                title="Sign out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
       </header>
 
       {/* Integration Configuration Details Modal */}

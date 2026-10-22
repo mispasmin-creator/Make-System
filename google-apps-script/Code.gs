@@ -14,6 +14,7 @@ var SHEET_FMS = 'FMS';
 var SHEET_REQUESTS_FALLBACK = 'System_Requests';
 var SHEET_MASTER = 'Master';
 var SHEET_LOGIN = 'Login Page';
+var SHEET_TECHNICAL_HELP = 'Technical Help';
 var DRIVE_FOLDER_ID = '1m1a4pquw0Mq-H41bD2X2R8d4c46V6-4E';
 var PROP_SYNC_VERSION = 'MAKE_SYSTEM_SYNC_VERSION';
 
@@ -42,6 +43,7 @@ var FMS_HEADERS = [
 
 var DEFAULT_COMPANIES = ['Pmmpl', 'Rkl', 'Refrasynth', 'Purab', 'Refratech'];
 var DEFAULT_DEVELOPERS = ['Ahitesh Tandon', 'Bhupendra Kumar', 'MD Alauddin'];
+var TECHNICAL_HELP_HEADERS = ['Ticket', 'Request Date (IST)', 'Company', 'Requester', 'Application & Page', 'Problem Summary', 'What Has To Be Changed', 'System / Page URL', 'Assigned To', 'Screenshots / PDF Attachments', 'Helpdesk Ref / Ticket', 'Status', 'Planned', 'Actual', 'Delay', 'Resolved Remark'];
 
 /**
  * Handle HTTP GET Requests
@@ -50,6 +52,9 @@ function doGet(e) {
   try {
     var params = (e && e.parameter) ? e.parameter : {};
     var action = params.action || 'getRequests';
+    var requestingUser = action !== 'ping' ? authorizeAppAction(action, params.token) : null;
+    if (action === 'getSession') { delete requestingUser.password; return jsonResponse({user:requestingUser}); }
+    if (action === 'getRepairIssues') return jsonResponse({ issues: fetchRepairIssues() });
 
     if (action === 'ping') {
       return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() });
@@ -70,7 +75,7 @@ function doGet(e) {
         version: currentVersion,
         requests: fetchAllRequests(),
         masterOptions: fetchMasterOptions(),
-        users: fetchAllUsers()
+        users: requestingUser.role === 'Admin' && !requestingUser.technicalOnly ? fetchAllUsers() : undefined
       });
     }
 
@@ -80,6 +85,7 @@ function doGet(e) {
         users: fetchAllUsers()
       });
     }
+    if (action === 'getTechnicalTickets') return jsonResponse({ version: getSyncVersion(), tickets: fetchTechnicalTickets() });
 
     // Default FMS payload stays small: users are loaded separately through getUsers.
     // Reading Login Page here made every FMS refresh slower than necessary.
@@ -110,6 +116,11 @@ function doPost(e) {
     }
 
     var action = payload.action;
+    if (action === 'login') return jsonResponse(loginAppUser(payload));
+    authorizeAppAction(action, payload.token);
+    if (['createRepairIssue', 'approveRepairIssue', 'resolveRepairIssue'].indexOf(action) !== -1) {
+      return jsonResponse({ success: true, issue: saveRepairIssue(action, payload), version: bumpSyncVersion() });
+    }
     if (!action) {
       return jsonResponse({ error: 'No action specified in payload' });
     }
@@ -117,6 +128,7 @@ function doPost(e) {
     if (action === 'initSheet') {
       return jsonResponse(setupInitialSheets());
     }
+    if (action === 'setupLoginPermissions') return jsonResponse(formatLoginPageSheet());
     if (action === 'getUsers') {
       return jsonResponse({ version: getSyncVersion(), users: fetchAllUsers() });
     }
@@ -135,6 +147,8 @@ function doPost(e) {
     if (action === 'createRequest') {
       return jsonResponse(handleCreateRequest(payload.data || payload));
     }
+    if (action === 'createTechnicalTicket') return jsonResponse({ success: true, ticket: handleCreateTechnicalTicket(payload.data || payload), version: bumpSyncVersion() });
+    if (action === 'submitTechnicalTicket') return jsonResponse({ success: true, ticket: handleSubmitTechnicalTicket(payload.ticketNo, payload.resolvedRemark), version: bumpSyncVersion() });
     if (action === 'approveIntroduction') {
       return jsonResponse(handleApproveIntroduction(payload.requestId, payload.data || payload));
     }
@@ -155,6 +169,175 @@ function doPost(e) {
   } catch (err) {
     return jsonResponse({ error: err.toString(), stack: err.stack });
   }
+}
+
+function handleSubmitTechnicalTicket(ticketNo, resolvedRemark) {
+  if (!ticketNo) throw new Error('Ticket number is required.');
+  if (!String(resolvedRemark || '').trim()) throw new Error('Resolved remark is required.');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = getTechnicalHelpSheet(), columns = technicalHelpColumns(sheet), last = sheet.getLastRow();
+    ['actual', 'resolvedremark', 'status'].forEach(function(key) {
+      if (!columns[key]) throw new Error('Submit requires this header in Technical Help row 6: ' + key);
+    });
+    if (last < 7) throw new Error('Technical ticket not found.');
+    var numbers = sheet.getRange(7, columns.ticket, last - 6, 1).getValues();
+    var index = -1;
+    for (var i = 0; i < numbers.length; i++) {
+      if (String(numbers[i][0]).trim() === String(ticketNo).trim()) { index = i; break; }
+    }
+    if (index < 0) throw new Error('Technical ticket not found: ' + ticketNo);
+    var row = index + 7;
+    var actual = sheet.getRange(row, columns.actual).getValue();
+    var savedRemark = sheet.getRange(row, columns.resolvedremark).getValue();
+    // Preserve the original completion time on repeated submissions.
+    if (!actual) {
+      savedRemark = String(resolvedRemark).trim();
+      writeTechnicalHelpCell(sheet, row, columns, 'Resolved Remark', savedRemark);
+      actual = new Date();
+      writeTechnicalHelpCell(sheet, row, columns, 'Actual', actual);
+      sheet.getRange(row, columns.actual).setNumberFormat('MM/dd/yyyy HH:mm:ss');
+    }
+    writeTechnicalHelpCell(sheet, row, columns, 'Status', 'Resolved');
+    SpreadsheetApp.flush();
+    return { id:String(ticketNo), ticketNo:String(ticketNo), status:'Resolved', actualDate:actual instanceof Date ? actual.toISOString() : String(actual), resolvedRemark:String(savedRemark || '') };
+  } finally { lock.releaseLock(); }
+}
+
+function getTechnicalHelpSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_TECHNICAL_HELP) || ss.insertSheet(SHEET_TECHNICAL_HELP);
+  if (sheet.getMaxColumns() < TECHNICAL_HELP_HEADERS.length) sheet.insertColumnsAfter(sheet.getMaxColumns(), TECHNICAL_HELP_HEADERS.length - sheet.getMaxColumns());
+  // Initialize only a completely empty sheet. Never rewrite an existing template.
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(6, 1, 1, TECHNICAL_HELP_HEADERS.length).setValues([TECHNICAL_HELP_HEADERS]).setFontWeight('bold');
+    sheet.setFrozenRows(6);
+  }
+  return sheet;
+}
+
+function technicalHelpColumns(sheet) {
+  var headers = sheet.getRange(6, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var columns = { protectedCols: {} };
+  headers.forEach(function(h, i) {
+    var key = normalizeHeaderKey(h);
+    if (!key) return;
+    if (columns[key]) throw new Error('Duplicate Technical Help header: ' + h);
+    columns[key] = i + 1;
+    if (/planned|delay/.test(key)) columns.protectedCols[i + 1] = true;
+  });
+  // Known alternative names are mapped from the live sheet on every request.
+  var aliases = {
+    ticket: ['Ticket No', 'Ticket Number', 'Ticket ID'],
+    requestdateist: ['Request Date', 'Created At', 'Timestamp', 'Timestamps'],
+    company: ['Company Name'], requester: ['Requested By', 'Requester Name'],
+    applicationpage: ['Application and Page', 'Application / Page', 'Application'],
+    problemsummary: ['Problem Description', 'Problem'],
+    whathastobechanged: ['Requested Correction', 'Correction'],
+    systempageurl: ['System URL', 'Page URL', 'URL'],
+    assignedto: ['Assigned Developer', 'DME', 'Assignee'],
+    helpdeskrefticket: ['Helpdesk Ref', 'External Help Ticket'],
+    screenshotspdfattachments: ['Attachments', 'Screenshot / PDF Attachments', 'Screenshots', 'Attachment'],
+    status: ['Ticket Status'], actual: ['Actual Date', 'Resolved At'],
+    resolvedremark: ['Resolved Remarks', 'Resolution Remark', 'Resolution Remarks']
+  };
+  Object.keys(aliases).forEach(function(key) {
+    if (columns[key]) return;
+    aliases[key].some(function(alias) {
+      var column = columns[normalizeHeaderKey(alias)];
+      if (!column || columns.protectedCols[column]) return false;
+      columns[key] = column;
+      return true;
+    });
+  });
+  if (!columns.ticket) throw new Error('Technical Help row 6 needs a Ticket header.');
+  return columns;
+}
+
+function writeTechnicalHelpCell(sheet, row, columns, heading, value) {
+  var key = normalizeHeaderKey(heading);
+  if (/planned|delay/.test(key)) throw new Error('Formula column is protected: ' + heading);
+  var column = columns[key];
+  if (!column) return; // Optional columns absent from the live sheet are skipped.
+  if (columns.protectedCols && columns.protectedCols[column]) throw new Error('Formula column is protected: ' + heading);
+  var cell = sheet.getRange(row, column);
+  if (typeof cell.getFormula === 'function' && cell.getFormula()) throw new Error('Existing formula will not be overwritten: ' + heading + ', row ' + row);
+  if (typeof value === 'string' && /^[=+@-]/.test(value)) value = "'" + value;
+  cell.setValue(value);
+}
+
+function fetchTechnicalTickets() {
+  var sheet = getTechnicalHelpSheet(), columns = technicalHelpColumns(sheet), last = sheet.getLastRow();
+  if (last < 7) return [];
+  var values = sheet.getRange(7, 1, last - 6, sheet.getLastColumn()).getValues();
+  return values.map(function(r) {
+    function get(h) { var column = columns[normalizeHeaderKey(h)]; return column ? r[column - 1] : ''; }
+    var ticketNo = get('Ticket');
+    if (!ticketNo) return null;
+    var date = get('Request Date (IST)');
+    var attachments = String(get('Screenshots / PDF Attachments') || '').split(/\r?\n/).filter(function(url) { return /^https?:\/\//i.test(url); }).map(function(url, i) { return { id:String(ticketNo) + '-attachment-' + i, name:'Attachment ' + (i + 1), url:url, driveUrl:url }; });
+    return { id:ticketNo, ticketNo:ticketNo, createdAt:date instanceof Date ? date.toISOString() : String(date || ''), requester:get('Requester'), company:get('Company'), application:get('Application & Page'), url:get('System / Page URL'), problem:get('Problem Summary'), correction:get('What Has To Be Changed'), status:get('Status') || 'Pending', assignedTo:get('Assigned To'), helpTicketNumber:get('Helpdesk Ref / Ticket'), plannedDate:get('Planned'), actualDate:get('Actual'), delay:get('Delay'), resolvedRemark:get('Resolved Remark'), attachments:attachments };
+  }).filter(function(ticket) { return ticket !== null; });
+}
+
+function handleCreateTechnicalTicket(data) {
+  ['company', 'application', 'sheetPage', 'problem', 'correction'].forEach(function(key) { if (!String(data[key] || '').trim()) throw new Error(key + ' is required.'); });
+  if (data.submissionType === 'On Behalf' && !String(data.onBehalfOf || '').trim()) throw new Error('On behalf name and role is required.');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+  var sheet = getTechnicalHelpSheet(), columns = technicalHelpColumns(sheet), now = new Date();
+  var attachments = Array.isArray(data.attachments) ? data.attachments : [];
+  if (attachments.length && !columns.screenshotspdfattachments) throw new Error('Add Screenshots / PDF Attachments heading in Technical Help row 6.');
+  var attachmentLinks = attachments.map(function(att) {
+    var url = String(att.driveUrl || att.url || '').trim();
+    if (!/^https?:\/\//i.test(url)) throw new Error('Attachment has not uploaded to Drive: ' + (att.name || 'file'));
+    return url;
+  });
+  var highestNumber = 0;
+  var previousAssignee = '';
+  // Locate the next ticket slot, independent of prefilled formula rows.
+  var rowNumber = 7;
+  if (sheet.getLastRow() >= 7) {
+    var tickets = sheet.getRange(7, columns.ticket, sheet.getLastRow() - 6, 1).getValues();
+    var assignees = columns.assignedto ? sheet.getRange(7, columns.assignedto, sheet.getLastRow() - 6, 1).getValues() : tickets.map(function() { return ['']; });
+    tickets.forEach(function(r, i) {
+      if (!r[0]) return;
+      rowNumber = i + 8;
+      previousAssignee = String(assignees[i][0] || '').trim();
+      var match = String(r[0]).match(/^TH\s*-\s*(\d{1,6})$/i);
+      if (match) highestNumber = Math.max(highestNumber, Number(match[1]));
+    });
+  }
+  var ticketNo = 'TH - ' + ('000' + (highestNumber + 1)).slice(-Math.max(3, String(highestNumber + 1).length));
+  // Use configured Master DMEs; defaults apply only when Master has none.
+  var master = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_MASTER);
+  var dmes = [];
+  if (master && master.getLastRow() >= 2) {
+    master.getRange(2, 2, master.getLastRow() - 1, 1).getValues().forEach(function(r) {
+      var name = String(r[0] || '').trim();
+      if (name && dmes.indexOf(name) === -1) dmes.push(name);
+    });
+  }
+  if (!dmes.length) dmes = DEFAULT_DEVELOPERS.slice();
+  var assignedTo = dmes[(dmes.indexOf(previousAssignee) + 1) % dmes.length] || '';
+  if (rowNumber > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), rowNumber - sheet.getMaxRows());
+  var fields = {
+    'Request Date (IST)': now,
+    'Company':data.company, 'Requester':data.submissionType === 'On Behalf' ? data.onBehalfOf : data.requester || '',
+    'Application & Page':data.application + ' / ' + data.sheetPage,
+    'Problem Summary':data.problem, 'What Has To Be Changed':data.correction,
+    'System / Page URL':data.url || '', 'Assigned To':assignedTo,
+    'Helpdesk Ref / Ticket':data.helpTicketNumber || '', 'Status':'Pending'
+  };
+  if (attachmentLinks.length) fields['Screenshots / PDF Attachments'] = attachmentLinks.join('\n');
+  Object.keys(fields).forEach(function(h) { writeTechnicalHelpCell(sheet, rowNumber, columns, h, fields[h]); });
+  if (columns.requestdateist) sheet.getRange(rowNumber, columns.requestdateist).setNumberFormat('MM/dd/yyyy HH:mm:ss');
+  writeTechnicalHelpCell(sheet, rowNumber, columns, 'Ticket', ticketNo);
+  SpreadsheetApp.flush();
+  return { id: ticketNo, ticketNo: ticketNo, createdAt: now.toISOString(), requester:fields.Requester, company:data.company || '', application:fields['Application & Page'], url:data.url || '', problem:data.problem || '', correction:data.correction || '', status:'Pending', assignedTo:assignedTo, helpTicketNumber:data.helpTicketNumber || '', plannedDate:'', actualDate:'', delay:'' };
+  } finally { lock.releaseLock(); }
 }
 
 /**
@@ -269,7 +452,7 @@ function findHeaderMapping(sheet) {
     colFinalStatus: getCol(['Final Status', 'FinalStatus'], 36)
   };
 
-  // Operational columns should never be blocked
+  // Header-based formula protection always takes priority over fallback indexes.
   var ops = [
     mapping.colTimestamps, mapping.colRequestNo, mapping.colCompany, mapping.colSystemName,
     mapping.colSummary, mapping.colDeveloper, mapping.colTargetDate, mapping.colImage,
@@ -280,7 +463,7 @@ function findHeaderMapping(sheet) {
     mapping.colActual3, mapping.colActual4, mapping.colFinalStatus
   ];
   for (var op = 0; op < ops.length; op++) {
-    if (ops[op]) delete protectedCols[ops[op]];
+    if (ops[op] && protectedCols[ops[op]]) ops[op] = null;
   }
 
   // Metadata JSON placed at Col 37 or lastCol + 1
@@ -1210,16 +1393,73 @@ function getInitialSeedUsers() {
   ];
 }
 
+function userStageLabels() {
+  return { requests:'System Requests', 'technical-new':'Raise Technical Help', 'technical-all':'All Technical Tickets', introduce:'Introduce System', create:'Create System', revise:'Revise System', testing:'Testing System', mis:'Update MIS System', 'repair-new':'New Issue Request', 'repair-approval':'Approval For Repair', 'repair-work':'Resolve Problem' };
+}
+
+function loginSystems() {
+  return { make:{ label:'Make System', stages:['requests','introduce','create','revise','testing','mis'] }, technical:{ label:'Technical Help', stages:['technical-new','technical-all'] }, repair:{ label:'Repair System', stages:['repair-new','repair-approval','repair-work'] } };
+}
+
+function loginAppUser(payload) {
+  var username = String(payload.username || '').trim().toLowerCase();
+  var user = fetchAllUsers().filter(function(u) { return u.username === username; })[0];
+  if (!user || user.status !== 'Active' || user.password !== String(payload.password || '').trim()) throw new Error('Invalid username/password or inactive account.');
+  var token = Utilities.getUuid() + Utilities.getUuid();
+  CacheService.getScriptCache().put('login:' + token, user.username, 21600);
+  delete user.password;
+  return {user:user, token:token};
+}
+
+function authorizeAppAction(action, token) {
+  var username = token && CacheService.getScriptCache().get('login:' + token);
+  if (!username) throw new Error('Session expired. Please log in again.');
+  var user = fetchAllUsers().filter(function(u) { return u.username === username; })[0];
+  if (!user || user.status !== 'Active') throw new Error('Account inactive or removed.');
+  var admin = user.role === 'Admin' && !user.technicalOnly;
+  var adminActions = ['getUsers','saveUsers','createUser','updateUser','deleteUser','initSheet','setupLoginPermissions'];
+  if (adminActions.indexOf(action) !== -1) { if (!admin) throw new Error('Only Admin can manage users and permissions.'); return user; }
+  if (action === 'getSession' || action === 'getMasterOptions' || action === 'ping' || admin) return user;
+  var reads = {getTechnicalTickets:['technical-all'],getRepairIssues:['repair-new','repair-approval','repair-work'],getRequests:['requests','introduce','create','revise','testing','mis'],checkSync:['requests','introduce','create','revise','testing','mis']};
+  var writes = {createTechnicalTicket:'technical-new',submitTechnicalTicket:'technical-all',createRepairIssue:'repair-new',approveRepairIssue:'repair-approval',resolveRepairIssue:'repair-work',createRequest:'requests',approveIntroduction:'introduce',submitTestingDecision:'testing',completeMisUpdate:'mis'};
+  if (reads[action]) {
+    if (!reads[action].some(function(id) { return user.permissions[id] && user.permissions[id].view; })) throw new Error('No access to this system.');
+    return user;
+  }
+  var ids = action === 'updateDevelopmentProgress' ? ['create','revise'] : action === 'uploadAttachment' ? ['requests','technical-new','repair-new'] : [writes[action]];
+  if (!ids.some(function(id) { return id && user.permissions[id] && user.permissions[id].view && user.permissions[id].update; })) throw new Error('Update access denied.');
+  return user;
+}
+
+function loginAccessColumns(sheet, ensure) {
+  var labels = userStageLabels(), systems = loginSystems();
+  var headers = sheet.getRange(1,1,1,Math.max(8,sheet.getLastColumn())).getValues()[0];
+  var expected = [];
+  Object.keys(systems).forEach(function(key) { expected.push(systems[key].label + ' Access'); });
+  Object.keys(labels).forEach(function(key) { expected.push(labels[key] + ' View', labels[key] + ' Update'); });
+  var mapping = {};
+  expected.forEach(function(name) {
+    var column = headers.indexOf(name) + 1;
+    if (!column && ensure) {
+      column = headers.length + 1;
+      if (column > sheet.getMaxColumns()) sheet.insertColumnsAfter(sheet.getMaxColumns(), column - sheet.getMaxColumns());
+      sheet.getRange(1,column).setValue(name).setFontWeight('bold');
+      headers.push(name);
+    }
+    if (column) mapping[name] = column;
+  });
+  return mapping;
+}
+
 function fetchAllUsers() {
   var sheet = getLoginSheet();
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) {
-    var seeds = getInitialSeedUsers();
-    handleSaveUsers(seeds);
-    return seeds;
+    return [];
   }
 
-  var values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+  var values = sheet.getRange(2, 1, lastRow - 1, Math.max(8,sheet.getLastColumn())).getValues();
+  var accessColumns = loginAccessColumns(sheet, false);
   var users = [];
 
   for (var i = 0; i < values.length; i++) {
@@ -1237,8 +1477,10 @@ function fetchAllUsers() {
     var permittedStagesText = String(row[7] || '').trim();
 
     var permissions = {};
-    var stageList = ['requests', 'introduce', 'create', 'revise', 'testing', 'mis'];
+    var stageLabels = userStageLabels();
+    var stageList = Object.keys(stageLabels);
     var lowerText = permittedStagesText.toLowerCase();
+    var explicitStages = /^stages:\s*/i.test(permittedStagesText) ? permittedStagesText.replace(/^stages:\s*/i, '').toLowerCase().split(',').map(function(label) { return label.trim(); }) : null;
 
     if (role === 'Admin' || lowerText.indexOf('all stages') !== -1) {
       for (var s = 0; s < stageList.length; s++) {
@@ -1247,17 +1489,50 @@ function fetchAllUsers() {
     } else {
       for (var s = 0; s < stageList.length; s++) {
         var sid = stageList[s];
+        if (explicitStages) {
+          permissions[sid] = { view:explicitStages.indexOf(stageLabels[sid].toLowerCase()) !== -1, edit:false, approve:false };
+          continue;
+        }
         var isPermitted = (sid === 'requests' && lowerText.indexOf('request') !== -1) ||
                           (sid === 'introduce' && lowerText.indexOf('introduce') !== -1) ||
                           (sid === 'create' && lowerText.indexOf('create') !== -1) ||
                           (sid === 'revise' && lowerText.indexOf('revise') !== -1) ||
                           (sid === 'testing' && (lowerText.indexOf('test') !== -1 || lowerText.indexOf('qa') !== -1)) ||
-                          (sid === 'mis' && lowerText.indexOf('mis') !== -1);
+                          (sid === 'mis' && lowerText.indexOf('mis') !== -1) ||
+                          (sid === 'repair-new' && lowerText.indexOf('new issue request') !== -1) ||
+                          (sid === 'repair-approval' && lowerText.indexOf('approval for repair') !== -1) ||
+                          (sid === 'repair-work' && lowerText.indexOf('resolve problem') !== -1) ||
+                          (sid === 'technical-new' && lowerText.indexOf('raise technical help') !== -1) ||
+                          (sid === 'technical-all' && lowerText.indexOf('all technical tickets') !== -1);
         permissions[sid] = { view: isPermitted, edit: false, approve: false };
       }
     }
 
+    var systemAccess = {};
+    var systems = loginSystems();
+    function yes(value) { return value === true || /^(yes|true|1|allowed|view|update)$/i.test(String(value).trim()); }
+    Object.keys(systems).forEach(function(key) {
+      var system = systems[key], systemCol = accessColumns[system.label + ' Access'];
+      var explicitSystem = systemCol && String(row[systemCol-1]).trim() !== '';
+      systemAccess[key] = role === 'Admin' || (explicitSystem ? yes(row[systemCol-1]) : system.stages.some(function(id) { return permissions[id].view; }));
+      system.stages.forEach(function(id) {
+        var viewCol = accessColumns[stageLabels[id] + ' View'], updateCol = accessColumns[stageLabels[id] + ' Update'];
+        var view = role === 'Admin' || (viewCol && String(row[viewCol-1]).trim() !== '' ? yes(row[viewCol-1]) : permissions[id].view);
+        var update = role === 'Admin' || Boolean(updateCol && yes(row[updateCol-1]));
+        permissions[id] = { view:systemAccess[key] && view, update:systemAccess[key] && view && update, edit:role === 'Admin', approve:systemAccess[key] && view && update };
+      });
+    });
+    var technicalOnly = password.indexOf('PMMPL') === 0;
+    if (technicalOnly) {
+      Object.keys(permissions).forEach(function(key) { permissions[key] = {view:false, edit:false, approve:false}; });
+      permissions['technical-new'] = {view:true, update:true, edit:false, approve:false};
+      permissions['technical-all'] = {view:true, update:false, edit:false, approve:false};
+      systemAccess = {make:false, technical:true, repair:false};
+      permittedStagesText = 'Stages: Raise Technical Help, All Technical Tickets';
+    }
     users.push({
+      technicalOnly: technicalOnly,
+      systemAccess: systemAccess,
       id: 'usr-sheet-' + cleanUser,
       username: cleanUser,
       fullName: cleanName,
@@ -1266,7 +1541,7 @@ function fetchAllUsers() {
       permittedStagesText: permittedStagesText || (role === 'Admin' ? 'All Stages (Admin Full Access)' : '1 of 6 Stages (View)'),
       permissions: permissions,
       department: department,
-      createdAt: new Date().toISOString(),
+      createdAt: row[6] instanceof Date ? row[6].toISOString() : String(row[6] || ''),
       password: password
     });
   }
@@ -1277,11 +1552,35 @@ function fetchAllUsers() {
 function handleSaveUsers(users) {
   if (!Array.isArray(users)) users = [];
   var sheet = getLoginSheet();
-
+  var accessColumns = loginAccessColumns(sheet, true);
+  var labels = userStageLabels(), systems = loginSystems();
+  var accessRows = [];
   var rowData = users.map(function(u) {
     var roleStr = (u.role || 'User').toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER';
     var statusStr = (u.status || 'Active').toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
     var permText = roleStr === 'ADMIN' ? 'All Stages (Admin Full Access)' : (u.permittedStagesText || '1 of 6 Stages (View)');
+    if (roleStr !== 'ADMIN' && u.permissions) {
+      var granted = Object.keys(labels).filter(function(key) { return u.permissions[key] && u.permissions[key].view; }).map(function(key) { return labels[key]; });
+      permText = 'Stages: ' + (granted.length ? granted.join(', ') : 'None');
+    }
+    if (String(u.password || '').indexOf('PMMPL') === 0) permText = 'Stages: Raise Technical Help, All Technical Tickets';
+    var restricted = String(u.password || '').indexOf('PMMPL') === 0;
+    var access = {}, allowedLabels = [];
+    Object.keys(systems).forEach(function(key) {
+      var system = systems[key];
+      var enabled = restricted ? key === 'technical' : roleStr === 'ADMIN' || (u.systemAccess && u.systemAccess[key] !== undefined ? Boolean(u.systemAccess[key]) : system.stages.some(function(id) { return u.permissions && u.permissions[id] && u.permissions[id].view; }));
+      access[system.label + ' Access'] = enabled ? 'Yes' : 'No';
+      system.stages.forEach(function(id) {
+        var p = u.permissions && u.permissions[id] || {};
+        var view = enabled && (restricted || roleStr === 'ADMIN' || p.view);
+        var update = view && (restricted ? id === 'technical-new' : roleStr === 'ADMIN' || p.update);
+        access[labels[id] + ' View'] = view ? 'Yes' : 'No';
+        access[labels[id] + ' Update'] = update ? 'Yes' : 'No';
+        if (view) allowedLabels.push(labels[id]);
+      });
+    });
+    accessRows.push(access);
+    if (roleStr !== 'ADMIN' || restricted) permText = 'Stages: ' + (allowedLabels.join(', ') || 'None');
 
     return [
       u.fullName || u.username,
@@ -1290,19 +1589,22 @@ function handleSaveUsers(users) {
       u.password || 'password123',
       statusStr,
       u.department || 'General',
-      Utilities.formatDate(new Date(), 'Asia/Kolkata', "dd MMM yyyy, h:mm a"),
+      u.createdAt || Utilities.formatDate(new Date(), 'Asia/Kolkata', "dd MMM yyyy, h:mm a"),
       permText
     ];
   });
 
   var lastRow = sheet.getLastRow();
   if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, Math.max(sheet.getLastColumn(), 8)).clearContent();
+    sheet.getRange(2, 1, lastRow - 1, 8).clearContent();
+    Object.keys(accessColumns).forEach(function(name) { sheet.getRange(2, accessColumns[name], lastRow - 1, 1).clearContent(); });
   }
   sheet.getRange(1, 1, 1, LOGIN_HEADERS.length).setValues([LOGIN_HEADERS]).setFontWeight('bold');
 
   if (rowData.length > 0) {
+    if (rowData.length + 1 > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), rowData.length + 1 - sheet.getMaxRows());
     sheet.getRange(2, 1, rowData.length, rowData[0].length).setValues(rowData);
+    Object.keys(accessColumns).forEach(function(name) { sheet.getRange(2, accessColumns[name], accessRows.length, 1).setValues(accessRows.map(function(access) { return [access[name]]; })); });
   }
 
   bumpSyncVersion();
@@ -1322,6 +1624,7 @@ function handleCreateUser(userData) {
     status: (userData.status || 'Active').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active',
     department: userData.department ? userData.department.trim() : 'General',
     permissions: userData.permissions || {},
+    systemAccess: userData.systemAccess,
     createdAt: new Date().toISOString(),
     password: userData.password ? userData.password.trim() : 'password123'
   });
@@ -1345,6 +1648,7 @@ function handleUpdateUser(userId, userData) {
         status: userData.status !== undefined ? ((String(userData.status).toUpperCase() === 'INACTIVE') ? 'Inactive' : 'Active') : users[i].status,
         department: userData.department !== undefined ? String(userData.department).trim() : users[i].department,
         permissions: userData.permissions !== undefined ? userData.permissions : users[i].permissions,
+        systemAccess: userData.systemAccess !== undefined ? userData.systemAccess : users[i].systemAccess,
         createdAt: users[i].createdAt,
         password: userData.password ? String(userData.password).trim() : users[i].password
       };
@@ -1387,9 +1691,7 @@ function fetchMasterOptions() {
     }
   }
 
-  for (var c = 0; c < DEFAULT_COMPANIES.length; c++) {
-    if (companies.indexOf(DEFAULT_COMPANIES[c]) === -1) companies.push(DEFAULT_COMPANIES[c]);
-  }
+  // Companies come exclusively from Master column A, without hardcoded additions.
   for (var dev = 0; dev < DEFAULT_DEVELOPERS.length; dev++) {
     if (developers.indexOf(DEFAULT_DEVELOPERS[dev]) === -1) developers.push(DEFAULT_DEVELOPERS[dev]);
   }
@@ -1416,6 +1718,77 @@ function setupInitialSheets() {
 /**
  * Ultra-Fast Sync Version Management (<10ms)
  */
+// Repair template: row 6 headers, row 7+ data. G/K/L/O are formula-owned.
+function repairSheet() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Repair');
+  if (!sheet) throw new Error('Repair sheet not found.');
+  var expected = ['Timestamp', 'Sr No.', 'Name Of The Person', 'Company', 'Things Not Working', 'Location Of Problem', 'Planned', 'Actual', 'Problem', 'Where Have To Solve', 'Time Delay', 'Planned', 'Actual', 'Status', 'Time Delay'];
+  var headers = sheet.getRange(6, 1, 1, 15).getValues()[0];
+  expected.forEach(function(h, i) { if (normalizeHeaderKey(headers[i]) !== normalizeHeaderKey(h)) throw new Error('Repair header mismatch at column ' + (i + 1) + ': expected ' + h); });
+  return sheet;
+}
+
+function repairRows(sheet) {
+  if (sheet.getLastRow() < 7) return [];
+  var count = sheet.getLastRow() - 6;
+  var values = sheet.getRange(7, 1, count, 15).getValues();
+  var notes = sheet.getRange(7, 2, count, 1).getNotes();
+  return values.map(function(r, i) {
+    if (!r[1]) return null;
+    var meta = parseJsonSafely(notes[i][0], {});
+    function date(v) { return v instanceof Date ? v.toISOString() : String(v || ''); }
+    return { id:String(r[1]), serial:String(r[1]), requester:r[2], company:r[3], description:r[4], location:r[5], createdAt:date(r[0]), version:meta.version || 1, idempotencyKey:meta.idempotencyKey || '', approval:{ planned:date(r[6]), actual:date(r[7]), delay:r[10] }, assessment:{ repairRequired:r[8], whereToSolve:r[9] }, repair:{ planned:date(r[11]), actual:date(r[12]), status:r[13], delay:r[14], remarks:meta.remarks || '' }, management:{}, activity:[], sheetRow:i + 7 };
+  }).filter(function(r) { return r !== null; });
+}
+
+function fetchRepairIssues() { return repairRows(repairSheet()); }
+
+function saveRepairIssue(action, payload) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = repairSheet(), issues = repairRows(sheet), data = payload.data || {}, row, issue;
+    var meta = {};
+    var writes = [];
+    if (action === 'createRepairIssue') {
+      ['requester', 'company', 'description'].forEach(function(k) { if (!String(data[k] || '').trim()) throw new Error(k + ' is required.'); });
+      if (!payload.idempotencyKey) throw new Error('Submission key required.');
+      for (var i = 0; i < issues.length; i++) if (issues[i].idempotencyKey === payload.idempotencyKey) return issues[i];
+      var highest = 0;
+      row = 7;
+      issues.forEach(function(item) { row = Math.max(row, item.sheetRow + 1); var match = item.serial.match(/^RS\s*-\s*(\d+)$/); if (match) highest = Math.max(highest, Number(match[1])); });
+      if (row > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), row - sheet.getMaxRows());
+      var serial = 'RS - ' + ('000' + (highest + 1)).slice(-Math.max(3, String(highest + 1).length));
+      meta = { version:1, idempotencyKey:payload.idempotencyKey };
+      writes = [[1,new Date()], [3,String(data.requester).trim()], [4,String(data.company).trim()], [5,String(data.description).trim()], [6,String(data.location || '').trim()], [14,'Pending Approval'], [2,serial]];
+    } else {
+      issue = issues.filter(function(item) { return item.id === String(payload.id); })[0];
+      if (!issue) throw new Error('Repair issue not found.');
+      if (issue.version !== payload.expectedVersion) throw new Error('This issue changed. Refresh and retry.');
+      row = issue.sheetRow;
+      meta = parseJsonSafely(sheet.getRange(row, 2).getNote(), {});
+      meta.version = issue.version + 1;
+      if (action === 'approveRepairIssue') {
+        if (issue.approval.actual) throw new Error('Issue already assessed.');
+        if (['Yes','No'].indexOf(data.repairRequired) < 0 || !String(data.whereToSolve || '').trim()) throw new Error('Problem Yes/No and Where Have To Solve are required.');
+        writes = [[9,data.repairRequired], [10,String(data.whereToSolve).trim()], [14,data.repairRequired === 'Yes' ? 'Pending Repair' : 'No Repair Required'], [8,new Date()]];
+      } else {
+        if (!issue.approval.actual || issue.assessment.repairRequired !== 'Yes' || issue.repair.actual) throw new Error('Issue is not pending repair.');
+        if (!String(data.remarks || '').trim()) throw new Error('Problem Resolve Remark required.');
+        meta.remarks = String(data.remarks).trim();
+        writes = [[14,'Resolved'], [13,new Date()]];
+      }
+    }
+    // Preflight ALL targets before writing; never overwrite any existing formula.
+    writes.forEach(function(w) { if ([7,11,12,15].indexOf(w[0]) !== -1 || sheet.getRange(row,w[0]).getFormula()) throw new Error('Repair formula protected at column ' + w[0]); });
+    writes.forEach(function(w) { var value = w[1]; if (typeof value === 'string' && /^[=+@-]/.test(value)) value = "'" + value; sheet.getRange(row,w[0]).setValue(value); });
+    sheet.getRange(row,2).setNote(JSON.stringify(meta));
+    [1,8,13].forEach(function(col) { if (writes.some(function(w) { return w[0] === col; })) sheet.getRange(row,col).setNumberFormat('MM/dd/yyyy HH:mm:ss'); });
+    SpreadsheetApp.flush();
+    return repairRows(sheet).filter(function(item) { return item.sheetRow === row; })[0];
+  } finally { lock.releaseLock(); }
+}
+
 function getSyncVersion() {
   return PropertiesService.getScriptProperties().getProperty(PROP_SYNC_VERSION) || '1';
 }
@@ -1442,8 +1815,9 @@ function onOpen() {
 
 function formatLoginPageSheet() {
   var users = fetchAllUsers();
-  handleSaveUsers(users);
-  SpreadsheetApp.getActiveSpreadsheet().toast('Login Page aligned successfully!', 'Make System', 4);
+  var result = handleSaveUsers(users);
+  SpreadsheetApp.getActiveSpreadsheet().toast('Login Page access columns updated. Users and passwords preserved.', 'Make System', 4);
+  return result;
 }
 
 /**
