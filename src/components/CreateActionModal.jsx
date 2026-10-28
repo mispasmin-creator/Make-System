@@ -97,13 +97,12 @@ export function CreateActionModal({ isOpen, onClose, request, onSubmit }) {
             type="button"
             disabled={isSubmitting}
             onClick={handleSubmit}
-            className={`font-semibold text-xs rounded-xl shadow-xs px-4 py-2 inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all hover:-translate-y-0.5 ${
-              isHold
-                ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-200'
-                : isDone
+            className={`font-semibold text-xs rounded-xl shadow-xs px-4 py-2 inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all hover:-translate-y-0.5 ${isHold
+              ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-200'
+              : isDone
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'
                 : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
-            }`}
+              }`}
           >
             {isSubmitting ? (
               <>
@@ -249,10 +248,10 @@ export function CreateActionModal({ isOpen, onClose, request, onSubmit }) {
             <div className="p-3 bg-white border border-rose-100 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider" htmlFor="extendedTargetDateInput">
-                  Hold Extend Target Date <span className="text-slate-400 font-normal lowercase">(Col S)</span>
+                  Hold Extend Target Date <span className="text-slate-400 font-normal lowercase"> </span>
                 </label>
                 <span className="text-[11px] text-slate-500">
-                  Original Target (Col G): <strong className="text-slate-700">{request.targetCompletionDate || 'Not set'}</strong>
+                  Original Target  : <strong className="text-slate-700">{request.targetCompletionDate || 'Not set'}</strong>
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -315,11 +314,10 @@ export function CreateActionModal({ isOpen, onClose, request, onSubmit }) {
                     setSystemUrl(e.target.value);
                     if (errors.systemUrl) setErrors(prev => ({ ...prev, systemUrl: '' }));
                   }}
-                  className={`w-full pl-10 pr-3.5 py-2.5 bg-white border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-4 shadow-2xs transition-all ${
-                    errors.systemUrl
-                      ? 'border-rose-300 focus:ring-rose-100 focus:border-rose-400'
-                      : 'border-slate-200/90 focus:ring-indigo-100 focus:border-indigo-400'
-                  }`}
+                  className={`w-full pl-10 pr-3.5 py-2.5 bg-white border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-4 shadow-2xs transition-all ${errors.systemUrl
+                    ? 'border-rose-300 focus:ring-rose-100 focus:border-rose-400'
+                    : 'border-slate-200/90 focus:ring-indigo-100 focus:border-indigo-400'
+                    }`}
                 />
               </div>
               {errors.systemUrl && (

@@ -23,6 +23,7 @@ import {
   getGoogleAppsScriptUrl,
   GOOGLE_SHEETS_CONFIG
 } from '../config/integrationConfig';
+import { sortNewestFirst } from '../utils/sortUtils';
 
 const STORAGE_KEY_REQUESTS = 'make_system_requests_v1';
 const STORAGE_KEY_MASTER = 'make_system_master_v1';
@@ -610,7 +611,8 @@ export function loadCachedMasterOptions() {
     const raw = localStorage.getItem(STORAGE_KEY_MASTER);
     if (raw) return JSON.parse(raw);
   } catch (e) {}
-  return { companies: [...SAMPLE_COMPANIES], developers: [...SAMPLE_DEVELOPERS] };
+  // With a live sheet, dropdowns come only from the Master sheet (A = Firm Name, B = DME).
+  return isGoogleSheetsConnected() ? { companies: [], developers: [] } : { companies: [...SAMPLE_COMPANIES], developers: [...SAMPLE_DEVELOPERS] };
 }
 
 export function saveCachedMasterOptions(options) {
@@ -637,7 +639,7 @@ export function getNextRequestNumber(requestsList) {
 }
 
 function normalizeApiRequests(payload) {
-  if (Array.isArray(payload.requests)) payload.requests = payload.requests.map(normalizeLegacyStage);
+  if (Array.isArray(payload.requests)) payload.requests = sortNewestFirst(payload.requests.map(normalizeLegacyStage), 'createdAt', 'requestNo');
   if (payload.request) payload.request = normalizeLegacyStage(payload.request);
   return payload;
 }
@@ -826,7 +828,7 @@ export const dataService = {
       try {
         const sync = await this.checkSync();
         if (sync.hasChanges && sync.requests) {
-          const masterOptions = sync.masterOptions?.developers?.length
+          const masterOptions = Array.isArray(sync.masterOptions?.companies)
             ? sync.masterOptions
             : await this.getMasterOptions();
           return {
@@ -869,8 +871,8 @@ export const dataService = {
         const res = await callGoogleAppsScript('getMasterOptions', {}, 'GET');
         if (res && (res.companies || res.developers)) {
           const opts = {
-            companies: Array.isArray(res.companies) && res.companies.length ? res.companies : (cached.companies?.length ? cached.companies : SAMPLE_COMPANIES),
-            developers: Array.isArray(res.developers) && res.developers.length ? res.developers : (cached.developers?.length ? cached.developers : SAMPLE_DEVELOPERS),
+            companies: Array.isArray(res.companies) ? res.companies : [],
+            developers: Array.isArray(res.developers) ? res.developers : [],
             isLiveGoogleSheets: true
           };
           saveCachedMasterOptions(opts);
@@ -927,6 +929,11 @@ export const dataService = {
   /**
    * Upload an attachment directly to Google Drive Folder: 1m1a4pquw0Mq-H41bD2X2R8d4c46V6-4E
    */
+  // Empty (not removed) so a missing cache never re-seeds the sample requests.
+  clearRequestsCache() {
+    saveStoredRequests([]);
+  },
+
   async uploadAttachment(fileItem) {
     if (isGoogleSheetsConnected() && fileItem.base64Data) {
       const res = await callGoogleAppsScript('uploadAttachment', {

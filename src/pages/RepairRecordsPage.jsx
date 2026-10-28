@@ -3,6 +3,7 @@ import { BadgeCheck, ClipboardCheck, Plus } from 'lucide-react';
 import { repairService, getCachedRepairIssues, subscribeRepairIssues, getRepairMode, enableRepairDemo, canRepairAction } from '../services/repairService';
 import { Pagination } from '../components/Pagination';
 import { Modal } from '../components/Modal';
+import { ImageAttachmentCell } from '../components/ImageAttachmentCell';
 import { formatDisplayDateTime } from '../utils/dateUtils';
 
 const button = 'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 text-xs font-semibold text-white shadow-xs shadow-indigo-300/40 hover:from-indigo-500 hover:to-indigo-600 transition-all cursor-pointer disabled:opacity-50';
@@ -12,15 +13,15 @@ function RecordsTable({ title, records, stage, onAction, canAct }) {
   const [page, setPage] = useState(1);
   const current = Math.min(page, Math.max(1, Math.ceil(records.length / 10)));
   const history = title === 'History';
-  const headings = ['Sr No.', 'Name Of The Person', 'Company', 'Things Not Working', 'Location Of Problem'];
-  if (stage === 'repair' || history) headings.push('Problem', 'Where Have To Solve');
+  const headings = ['Sr No.', 'Name of Requester', 'Company', 'Things Not Working', 'Location Of Problem', 'Image'];
+  if (stage === 'repair' || history) headings.push('Problem', 'Where Have To Solve', 'Assigned Developer');
   if (history) headings.push(...(stage === 'repair' ? ['Problem Resolve Remark', 'Resolved At'] : ['Approval At']));
   else headings.push('Action');
   return <section className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_6px_24px_-4px_rgba(15,23,42,0.05),0_2px_8px_-1px_rgba(15,23,42,0.02)]">
     <h2 className="border-b border-slate-100 px-5 py-4 text-sm font-bold text-slate-800">{title} <span className="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-600">{records.length}</span></h2>
     <div className="flex-1 overflow-auto"><table className="w-full border-collapse text-left text-xs"><thead className="sticky top-0 z-10 border-b border-slate-200/70 bg-slate-50 shadow-xs"><tr>{headings.map(h => <th key={h} className="whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-600">{h}</th>)}</tr></thead><tbody className="text-slate-600 [&>tr]:transition-colors [&>tr:hover]:bg-slate-50/80">
-      {records.slice((current - 1) * 10, current * 10).map(issue => <tr key={issue.id} className="border-t border-slate-100"><td className="whitespace-nowrap px-5 py-4 font-semibold text-indigo-700">{issue.serial}</td><td className="px-5 py-4">{issue.requester}</td><td className="px-5 py-4">{issue.company}</td><td className="min-w-56 whitespace-pre-wrap px-5 py-4">{issue.description}</td><td className="px-5 py-4">{issue.location || '—'}</td>
-        {(stage === 'repair' || history) && <><td className="px-5 py-4">{issue.assessment?.repairRequired || '—'}</td><td className="whitespace-pre-wrap px-5 py-4">{issue.assessment?.whereToSolve || '—'}</td></>}
+      {records.slice((current - 1) * 10, current * 10).map(issue => <tr key={issue.id} className="border-t border-slate-100"><td className="whitespace-nowrap px-5 py-4 font-semibold text-indigo-700">{issue.serial}</td><td className="px-5 py-4">{issue.requester}</td><td className="px-5 py-4">{issue.company}</td><td className="min-w-56 whitespace-pre-wrap px-5 py-4">{issue.description}</td><td className="px-5 py-4">{issue.location || '—'}</td><td className="px-5 py-4"><ImageAttachmentCell attachments={issue.attachments} showAsTd={false} /></td>
+        {(stage === 'repair' || history) && <><td className="px-5 py-4">{issue.assessment?.repairRequired || '—'}</td><td className="whitespace-pre-wrap px-5 py-4">{issue.assessment?.whereToSolve || '—'}</td><td className="px-5 py-4">{issue.assessment?.assignedDeveloper || '—'}</td></>}
         {history ? <>{stage === 'repair' && <td className="whitespace-pre-wrap px-5 py-4">{issue.repair?.remarks || '—'}</td>}<td className="whitespace-nowrap px-5 py-4">{formatDisplayDateTime(issue[stage]?.actual)}</td></> : <td className="px-5 py-4">{canAct ? <button type="button" onClick={() => onAction(issue)} className={`${button} whitespace-nowrap`}>{stage === 'approval' ? 'Approve' : 'Resolve Problem'}</button> : <span className="text-slate-400">View only</span>}</td>}
       </tr>)}
       {!records.length && <tr><td colSpan={headings.length} className="p-8 text-center text-slate-400">No {title.toLowerCase()} records.</td></tr>}
@@ -28,13 +29,13 @@ function RecordsTable({ title, records, stage, onAction, canAct }) {
   </section>;
 }
 
-export function RepairRecordsPage({ onNavigate, currentUser, stage = 'approval' }) {
+export function RepairRecordsPage({ onNavigate, currentUser, stage = 'approval', developerOptions = [] }) {
   const [issues, setIssues] = useState(getCachedRepairIssues);
   const [mode, setMode] = useState(getRepairMode);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState({ repairRequired: 'Yes', whereToSolve: '', remarks: '' });
+  const [form, setForm] = useState({ repairRequired: 'Yes', whereToSolve: '', assignedDeveloper: '', remarks: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
@@ -60,10 +61,11 @@ export function RepairRecordsPage({ onNavigate, currentUser, stage = 'approval' 
   }, [mode]);
 
   function open(issue) {
-    setSelected(issue); setForm({ repairRequired: 'Yes', whereToSolve: '', remarks: '' }); setFormError('');
+    setSelected(issue); setForm({ repairRequired: 'Yes', whereToSolve: '', assignedDeveloper: '', remarks: '' }); setFormError('');
   }
   async function submit(e) {
     e.preventDefault(); if (busy.current || !selected) return;
+    if (approval && form.repairRequired === 'Yes' && !form.assignedDeveloper) { setFormError('Please assign a developer.'); return; }
     if (approval ? !form.whereToSolve.trim() : !form.remarks.trim()) { setFormError(approval ? 'Where Have To Solve is required.' : 'Problem Resolve Remark is required.'); return; }
     busy.current = true; setSaving(true); setFormError('');
     try {
@@ -87,7 +89,7 @@ export function RepairRecordsPage({ onNavigate, currentUser, stage = 'approval' 
     </>}
     <Modal isOpen={Boolean(selected)} title={`${approval ? 'Approval For Repair' : 'Resolve Problem'} — ${selected?.serial || ''}`} onClose={() => { if (!busy.current) setSelected(null); }}>
       {selected && <form onSubmit={submit} className="space-y-4"><div className="rounded-lg bg-slate-50 p-3 text-xs"><p className="font-semibold">{selected.requester} · {selected.company}</p><p className="mt-2 whitespace-pre-wrap">{selected.description}</p><p className="mt-2">Location: {selected.location || '—'}</p></div><fieldset disabled={saving} className="space-y-4">
-        {approval ? <><label className="block text-xs font-semibold">Problem *<select value={form.repairRequired} onChange={e => setForm({ ...form, repairRequired: e.target.value })} className={control}><option>Yes</option><option>No</option></select></label><label className="block text-xs font-semibold">Where Have To Solve *<textarea required rows={3} value={form.whereToSolve} onChange={e => setForm({ ...form, whereToSolve: e.target.value })} className={control} /></label></> : <><p className="text-xs">Where Have To Solve: {selected.assessment?.whereToSolve}</p><label className="block text-xs font-semibold">Problem Resolve Remark *<textarea required rows={4} value={form.remarks} onChange={e => setForm({ ...form, remarks: e.target.value })} className={control} /></label></>}
+        {approval ? <><label className="block text-xs font-semibold">Problem *<select value={form.repairRequired} onChange={e => setForm({ ...form, repairRequired: e.target.value })} className={control}><option>Yes</option><option>No</option></select></label>{form.repairRequired === 'Yes' && <label className="block text-xs font-semibold">Assign Developer *<select required value={form.assignedDeveloper} onChange={e => setForm({ ...form, assignedDeveloper: e.target.value })} className={control}><option value="">Select developer</option>{developerOptions.map(d => <option key={d} value={d}>{d}</option>)}</select></label>}<label className="block text-xs font-semibold">Where Have To Solve *<textarea required rows={3} value={form.whereToSolve} onChange={e => setForm({ ...form, whereToSolve: e.target.value })} className={control} /></label></> : <><p className="text-xs">Where Have To Solve: {selected.assessment?.whereToSolve}</p><p className="text-xs">Assigned Developer: {selected.assessment?.assignedDeveloper || '—'}</p><label className="block text-xs font-semibold">Problem Resolve Remark *<textarea required rows={4} value={form.remarks} onChange={e => setForm({ ...form, remarks: e.target.value })} className={control} /></label></>}
         {formError && <p role="alert" className="text-xs text-red-600">{formError}</p>}<div className="flex justify-end gap-2"><button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-xs">Cancel</button><button type="submit" className={button}>{saving ? 'Saving...' : approval ? 'Submit Approval' : 'Submit Resolution'}</button></div>
       </fieldset></form>}
     </Modal>

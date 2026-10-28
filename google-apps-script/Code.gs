@@ -26,13 +26,12 @@ var LOGIN_HEADERS = [
   'Password',
   'Status',
   'Department',
-  'Created',
-  'Permitted Stages'
+  'Created'
 ];
 
 // Standard FMS Row 6 Headers
 var FMS_HEADERS = [
-  'Timestamps', 'Request No.', 'Company', 'System Name', 'Requirements Summary',
+  'Timestamps', 'Request No.', 'Requester', 'Company', 'System Name', 'Requirements Summary',
   'Image', 'Work Status', 'Planned', 'Actual', 'Delay', 'Assigned Developer',
   'Target Date', 'Planned 1',
   'Actual 1', 'Delay 1', 'System Link / URL', 'Admin ID / Username', 'Password',
@@ -54,7 +53,7 @@ function doGet(e) {
     var action = params.action || 'getRequests';
     var requestingUser = action !== 'ping' ? authorizeAppAction(action, params.token) : null;
     if (action === 'getSession') { delete requestingUser.password; return jsonResponse({user:requestingUser}); }
-    if (action === 'getRepairIssues') return jsonResponse({ issues: fetchRepairIssues() });
+    if (action === 'getRepairIssues') return jsonResponse({ issues: scopeToUser(requestingUser, fetchRepairIssues(), function(i) { return [i.requester, i.assessment && i.assessment.assignedDeveloper, i.raisedBy]; }) });
 
     if (action === 'ping') {
       return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() });
@@ -73,9 +72,9 @@ function doGet(e) {
       return jsonResponse({
         hasChanges: true,
         version: currentVersion,
-        requests: fetchAllRequests(),
+        requests: scopeToUser(requestingUser, fetchAllRequests(), requestOwnerNames),
         masterOptions: fetchMasterOptions(),
-        users: requestingUser.role === 'Admin' && !requestingUser.technicalOnly ? fetchAllUsers() : undefined
+        users: requestingUser.role === 'Admin' ? fetchAllUsers() : undefined
       });
     }
 
@@ -85,13 +84,13 @@ function doGet(e) {
         users: fetchAllUsers()
       });
     }
-    if (action === 'getTechnicalTickets') return jsonResponse({ version: getSyncVersion(), tickets: fetchTechnicalTickets() });
+    if (action === 'getTechnicalTickets') return jsonResponse({ version: getSyncVersion(), tickets: scopeToUser(requestingUser, fetchTechnicalTickets(), function(t) { return [t.requester, t.assignedTo, t.raisedBy]; }) });
 
     // Default FMS payload stays small: users are loaded separately through getUsers.
     // Reading Login Page here made every FMS refresh slower than necessary.
     return jsonResponse({
       version: getSyncVersion(),
-      requests: fetchAllRequests(),
+      requests: scopeToUser(requestingUser, fetchAllRequests(), requestOwnerNames),
       masterOptions: fetchMasterOptions()
     });
   } catch (err) {
@@ -117,7 +116,11 @@ function doPost(e) {
 
     var action = payload.action;
     if (action === 'login') return jsonResponse(loginAppUser(payload));
-    authorizeAppAction(action, payload.token);
+    var actor = authorizeAppAction(action, payload.token);
+    // Record the real person behind every new record so User / EA can later see only their own.
+    payload.actorName = actor ? actor.fullName : '';
+    if (actor && action === 'createRequest') { payload.data = payload.data || {}; payload.data.createdBy = actor.fullName; }
+    if (actor && action === 'createTechnicalTicket') { payload.data = payload.data || {}; payload.data.raisedBy = actor.fullName; }
     if (['createRepairIssue', 'approveRepairIssue', 'resolveRepairIssue'].indexOf(action) !== -1) {
       return jsonResponse({ success: true, issue: saveRepairIssue(action, payload), version: bumpSyncVersion() });
     }
@@ -271,14 +274,52 @@ function fetchTechnicalTickets() {
   var sheet = getTechnicalHelpSheet(), columns = technicalHelpColumns(sheet), last = sheet.getLastRow();
   if (last < 7) return [];
   var values = sheet.getRange(7, 1, last - 6, sheet.getLastColumn()).getValues();
+  var techMeta = readTechnicalMeta();
   return values.map(function(r) {
     function get(h) { var column = columns[normalizeHeaderKey(h)]; return column ? r[column - 1] : ''; }
     var ticketNo = get('Ticket');
     if (!ticketNo) return null;
     var date = get('Request Date (IST)');
     var attachments = String(get('Screenshots / PDF Attachments') || '').split(/\r?\n/).filter(function(url) { return /^https?:\/\//i.test(url); }).map(function(url, i) { return { id:String(ticketNo) + '-attachment-' + i, name:'Attachment ' + (i + 1), url:url, driveUrl:url }; });
-    return { id:ticketNo, ticketNo:ticketNo, createdAt:date instanceof Date ? date.toISOString() : String(date || ''), requester:get('Requester'), company:get('Company'), application:get('Application & Page'), url:get('System / Page URL'), problem:get('Problem Summary'), correction:get('What Has To Be Changed'), status:get('Status') || 'Pending', assignedTo:get('Assigned To'), helpTicketNumber:get('Helpdesk Ref / Ticket'), plannedDate:get('Planned'), actualDate:get('Actual'), delay:get('Delay'), resolvedRemark:get('Resolved Remark'), attachments:attachments };
+    return { id:ticketNo, ticketNo:ticketNo, createdAt:date instanceof Date ? date.toISOString() : String(date || ''), requester:get('Requester'), company:get('Company'), application:get('Application & Page'), url:get('System / Page URL'), problem:get('Problem Summary'), correction:get('What Has To Be Changed'), status:get('Status') || 'Pending', assignedTo:get('Assigned To'), helpTicketNumber:get('Helpdesk Ref / Ticket'), plannedDate:get('Planned'), actualDate:get('Actual'), delay:get('Delay'), resolvedRemark:get('Resolved Remark'), raisedBy:(techMeta[String(ticketNo)] || {}).raisedBy || '', attachments:attachments };
   }).filter(function(ticket) { return ticket !== null; });
+}
+
+// Data scope by role: Admin and DME see everything; User and EA only see records raised by them or assigned to them.
+function canSeeAllData(user) {
+  return Boolean(user) && (user.role === 'Admin' || user.role === 'DME');
+}
+
+function ownsName(user, name) {
+  var me = String(user && user.fullName || '').trim().toLowerCase(), value = String(name || '').trim().toLowerCase();
+  return Boolean(me) && Boolean(value) && (value === me || value.indexOf(me + ' (') === 0);
+}
+
+function scopeToUser(user, list, ownerNames) {
+  if (!user || canSeeAllData(user)) return list;
+  return list.filter(function(item) { return ownerNames(item).some(function(name) { return ownsName(user, name); }); });
+}
+
+function requestOwnerNames(request) { return [request.requester, request.createdBy, request.assignedDeveloper]; }
+
+var TECH_META_PREFIX = 'TECHMETA_';
+
+function readTechnicalMeta() {
+  var props = PropertiesService.getScriptProperties();
+  var all = typeof props.getProperties === 'function' ? (props.getProperties() || {}) : {};
+  var out = {};
+  Object.keys(all).forEach(function(key) {
+    if (key.indexOf(TECH_META_PREFIX) === 0) out[key.slice(TECH_META_PREFIX.length)] = parseJsonSafely(all[key], {}) || {};
+  });
+  return out;
+}
+
+function itResolverNames() {
+  var names = [];
+  fetchAllUsers().forEach(function(u) {
+    if (u.status === 'Active' && normalizeHeaderKey(u.department) === 'itresolver' && u.fullName && names.indexOf(u.fullName) === -1) names.push(u.fullName);
+  });
+  return names;
 }
 
 function handleCreateTechnicalTicket(data) {
@@ -311,17 +352,9 @@ function handleCreateTechnicalTicket(data) {
     });
   }
   var ticketNo = 'TH - ' + ('000' + (highestNumber + 1)).slice(-Math.max(3, String(highestNumber + 1).length));
-  // Use configured Master DMEs; defaults apply only when Master has none.
-  var master = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_MASTER);
-  var dmes = [];
-  if (master && master.getLastRow() >= 2) {
-    master.getRange(2, 2, master.getLastRow() - 1, 1).getValues().forEach(function(r) {
-      var name = String(r[0] || '').trim();
-      if (name && dmes.indexOf(name) === -1) dmes.push(name);
-    });
-  }
-  if (!dmes.length) dmes = DEFAULT_DEVELOPERS.slice();
-  var assignedTo = dmes[(dmes.indexOf(previousAssignee) + 1) % dmes.length] || '';
+  // Round-robin over active Login Page users whose Department is "IT Resolver": each new ticket goes to the next one.
+  var resolvers = itResolverNames();
+  var assignedTo = resolvers.length ? resolvers[(resolvers.indexOf(previousAssignee) + 1) % resolvers.length] : '';
   if (rowNumber > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), rowNumber - sheet.getMaxRows());
   var fields = {
     'Request Date (IST)': now,
@@ -335,8 +368,9 @@ function handleCreateTechnicalTicket(data) {
   Object.keys(fields).forEach(function(h) { writeTechnicalHelpCell(sheet, rowNumber, columns, h, fields[h]); });
   if (columns.requestdateist) sheet.getRange(rowNumber, columns.requestdateist).setNumberFormat('MM/dd/yyyy HH:mm:ss');
   writeTechnicalHelpCell(sheet, rowNumber, columns, 'Ticket', ticketNo);
+  PropertiesService.getScriptProperties().setProperty(TECH_META_PREFIX + ticketNo, JSON.stringify({ raisedBy: String(data.raisedBy || '') }));
   SpreadsheetApp.flush();
-  return { id: ticketNo, ticketNo: ticketNo, createdAt: now.toISOString(), requester:fields.Requester, company:data.company || '', application:fields['Application & Page'], url:data.url || '', problem:data.problem || '', correction:data.correction || '', status:'Pending', assignedTo:assignedTo, helpTicketNumber:data.helpTicketNumber || '', plannedDate:'', actualDate:'', delay:'' };
+  return { id: ticketNo, ticketNo: ticketNo, createdAt: now.toISOString(), requester:fields.Requester, company:data.company || '', application:fields['Application & Page'], url:data.url || '', problem:data.problem || '', correction:data.correction || '', status:'Pending', assignedTo:assignedTo, helpTicketNumber:data.helpTicketNumber || '', raisedBy:data.raisedBy || '', plannedDate:'', actualDate:'', delay:'' };
   } finally { lock.releaseLock(); }
 }
 
@@ -428,6 +462,7 @@ function findHeaderMapping(sheet) {
     protectedCols: protectedCols,
     colTimestamps: getCol(['Timestamps', 'Timestamp', 'Created At'], 1),
     colRequestNo: getCol(['Request No.', 'Request No', 'Request Number', 'Req No'], 2),
+    colRequester: getCol(['Requester', 'Requester Name', 'Requested By', 'Name Of Requester', 'Name of Requester']),
     colCompany: getCol(['Company', 'Company Name'], 3),
     colSystemName: getCol(['System Name', 'System', 'Project Name'], 4),
     colSummary: getCol(['Requirements Summary', 'Business Purpose', 'Summary'], 5),
@@ -469,13 +504,8 @@ function findHeaderMapping(sheet) {
     if (ops[op] && protectedCols[ops[op]]) ops[op] = null;
   }
 
-  // Preserve metadata even when deleting sheet columns shifts its header left.
-  var colMeta = getCol(['_Make_System_Metadata', 'Metadata', 'Internal ID', '_meta'], 0);
-  if (!colMeta || protectedCols[colMeta] || ops.indexOf(colMeta) !== -1) {
-    colMeta = Math.max(lastCol + 1, FMS_HEADERS.length + 1);
-    while (protectedCols[colMeta]) colMeta++;
-  }
-  mapping.colMeta = colMeta;
+  // Request metadata lives in Script Properties, never in a sheet column.
+  mapping.colMeta = 0;
 
   return mapping;
 }
@@ -486,8 +516,10 @@ function findHeaderMapping(sheet) {
 function safeSetCellValue(sheet, row, col, value, mapping) {
   if (!col || col <= 0) return;
   if (mapping && mapping.protectedCols && mapping.protectedCols[col]) return;
-  if (mapping && col === mapping.colMeta) return;
-  sheet.getRange(row, col).setValue(value);
+  var cell = sheet.getRange(row, col);
+  // Planned/Delay columns carry formulas: skip any cell that already holds one.
+  if (typeof cell.getFormula === 'function' && cell.getFormula()) return;
+  cell.setValue(value);
 }
 
 /**
@@ -522,8 +554,9 @@ function fetchAllRequests() {
   if (lastRow < mapping.dataStartRow) return [];
 
   var numRows = lastRow - mapping.dataStartRow + 1;
-  var maxCols = Math.max(sheet.getLastColumn(), mapping.colMeta || 37);
+  var maxCols = fmsLastMappedColumn(mapping);
   var values = sheet.getRange(mapping.dataStartRow, 1, numRows, maxCols).getValues();
+  var allMeta = readAllRequestMeta();
 
   var requests = [];
   for (var i = 0; i < values.length; i++) {
@@ -538,10 +571,7 @@ function fetchAllRequests() {
       reqNo = 'SM-' + ('0000' + (i + 1)).slice(-4);
     }
 
-    var metaObj = null;
-    if (mapping.colMeta && mapping.colMeta <= row.length) {
-      metaObj = parseJsonSafely(row[mapping.colMeta - 1], null);
-    }
+    var metaObj = allMeta[reqNo] || null;
 
     var companyName = String(row[mapping.colCompany - 1] || '').trim();
     var systemName = String(row[mapping.colSystemName - 1] || '').trim();
@@ -549,6 +579,7 @@ function fetchAllRequests() {
     var assignedDeveloper = String(row[mapping.colDeveloper - 1] || '').trim();
     var targetDate = formatDateCell(row[mapping.colTargetDate - 1]);
     var timestampStr = formatTimestampCell(row[mapping.colTimestamps - 1]);
+    var requesterName = (mapping.colRequester && mapping.colRequester <= row.length ? String(row[mapping.colRequester - 1] || '').trim() : '') || ((metaObj && metaObj.createdBy && metaObj.createdBy !== 'Administrator') ? String(metaObj.createdBy) : '');
 
     var meetingDate = mapping.colMeetingDate && mapping.colMeetingDate <= row.length ? formatDateCell(row[mapping.colMeetingDate - 1]) : '';
     var introRemarks = mapping.colDiscussionRemarks && mapping.colDiscussionRemarks <= row.length ? String(row[mapping.colDiscussionRemarks - 1] || '').trim() : '';
@@ -589,9 +620,10 @@ function fetchAllRequests() {
     var attachments = (metaObj && metaObj.attachments) ? metaObj.attachments : [];
     var currentRevisionNo = sheetRevisionNo || (metaObj && metaObj.currentRevisionNo ? metaObj.currentRevisionNo : null);
     var upgradeTargetDate = sheetUpgradeTargetDate || (metaObj && metaObj.upgradeTargetDate ? formatDateCell(metaObj.upgradeTargetDate) : null) || null;
-    var systemUrl = (mapping.colSystemLink && mapping.colSystemLink <= row.length ? String(row[mapping.colSystemLink - 1] || '').trim() : '') || (metaObj && metaObj.systemUrl ? metaObj.systemUrl : '');
-    var adminId = (mapping.colAdminId && mapping.colAdminId <= row.length ? String(row[mapping.colAdminId - 1] || '').trim() : '') || (metaObj && metaObj.adminId ? metaObj.adminId : '');
-    var adminPassword = (mapping.colAdminPassword && mapping.colAdminPassword <= row.length ? String(row[mapping.colAdminPassword - 1] || '').trim() : '') || (metaObj && metaObj.adminPassword ? metaObj.adminPassword : '');
+    // Link / login values come only from the sheet: when a cell is cleared there, the app must not bring it back from history.
+    var systemUrl = mapping.colSystemLink && mapping.colSystemLink <= row.length ? String(row[mapping.colSystemLink - 1] || '').trim() : '';
+    var adminId = mapping.colAdminId && mapping.colAdminId <= row.length ? String(row[mapping.colAdminId - 1] || '').trim() : '';
+    var adminPassword = mapping.colAdminPassword && mapping.colAdminPassword <= row.length ? String(row[mapping.colAdminPassword - 1] || '').trim() : '';
 
     // Fallback for attachments if sheet has Col H populated
     if (attachments.length === 0 && mapping.colImage && mapping.colImage <= row.length) {
@@ -730,15 +762,16 @@ function fetchAllRequests() {
       businessPurpose: businessPurpose,
       assignedDeveloper: assignedDeveloper,
       targetCompletionDate: targetDate,
-      holdReason: (metaObj && metaObj.holdReason) ? metaObj.holdReason : holdReason,
-      holdExtendTargetDate: (metaObj && metaObj.holdExtendTargetDate) ? metaObj.holdExtendTargetDate : (holdExtendTargetDate || null),
+      holdReason: holdReason,
+      holdExtendTargetDate: holdExtendTargetDate || null,
       currentStage: currentStage,
       currentStatus: currentStatus,
       workStatus: workStatus,
       progressPercent: progressPercent,
       latestRemarks: latestRemarks,
       createdAt: timestampStr || new Date().toISOString(),
-      createdBy: (metaObj && metaObj.createdBy) ? metaObj.createdBy : 'Administrator',
+      requester: requesterName,
+      createdBy: requesterName || ((metaObj && metaObj.createdBy) ? metaObj.createdBy : 'Administrator'),
       lastUpdatedAt: (metaObj && metaObj.lastUpdatedAt) ? metaObj.lastUpdatedAt : (timestampStr || new Date().toISOString()),
       closedAt: formatTimestampCell(sheetActual4) || (metaObj && metaObj.closedAt ? metaObj.closedAt : ''),
       completedAt: formatTimestampCell(sheetActual4) || (metaObj && (metaObj.closedAt || metaObj.completedAt) ? (metaObj.closedAt || metaObj.completedAt) : ''),
@@ -868,6 +901,7 @@ function handleCreateRequest(data) {
     // Write values to FMS columns
     safeSetCellValue(sheet, targetRow, mapping.colTimestamps, now, mapping);
     safeSetCellValue(sheet, targetRow, mapping.colRequestNo, requestNo, mapping);
+    safeSetCellValue(sheet, targetRow, mapping.colRequester, data.createdBy || '', mapping);
     safeSetCellValue(sheet, targetRow, mapping.colCompany, companyName, mapping);
     safeSetCellValue(sheet, targetRow, mapping.colSystemName, systemName, mapping);
     safeSetCellValue(sheet, targetRow, mapping.colSummary, data.businessPurpose || systemName, mapping);
@@ -881,14 +915,7 @@ function handleCreateRequest(data) {
     if (mapping.colFinalStatus) safeSetCellValue(sheet, targetRow, mapping.colFinalStatus, 'Open', mapping);
 
     // Save metadata
-    if (mapping.colMeta && !mapping.protectedCols[mapping.colMeta]) {
-      sheet.getRange(targetRow, mapping.colMeta).setValue(safeStringifyMeta(metaObj));
-      var curMetaHeader = sheet.getRange(mapping.headerRow, mapping.colMeta).getValue();
-      if (!curMetaHeader) {
-        sheet.getRange(mapping.headerRow, mapping.colMeta).setValue('_Make_System_Metadata');
-        try { sheet.hideColumns(mapping.colMeta); } catch (e) {}
-      }
-    }
+    writeRequestMeta(requestNo, metaObj);
 
     bumpSyncVersion();
 
@@ -907,6 +934,7 @@ function handleCreateRequest(data) {
       progressPercent: 0,
       latestRemarks: 'New request created. Pending Introduce System kickoff meeting.',
       createdAt: nowISO,
+      requester: data.createdBy || '',
       createdBy: data.createdBy || 'Administrator',
       lastUpdatedAt: nowISO,
       introduction: { isCompleted: false },
@@ -972,9 +1000,12 @@ function handleUpdateDevelopmentProgress(requestId, data) {
     rowObj.lastUpdatedAt = nowISO;
 
     if (data.upgradeTargetDate) rowObj.upgradeTargetDate = data.upgradeTargetDate;
-    if (data.systemUrl !== undefined) rowObj.systemUrl = data.systemUrl;
-    if (data.adminId !== undefined) rowObj.adminId = data.adminId;
-    if (data.adminPassword !== undefined) rowObj.adminPassword = data.adminPassword;
+    // System link and admin login belong to a finished system: In Progress / On Hold submissions never save them.
+    if (workStatus === 'Completed') {
+      if (data.systemUrl !== undefined) rowObj.systemUrl = data.systemUrl;
+      if (data.adminId !== undefined) rowObj.adminId = data.adminId;
+      if (data.adminPassword !== undefined) rowObj.adminPassword = data.adminPassword;
+    }
 
     if (workStatus === 'In Progress') {
       var pct = parseInt(data.progressPercent, 10) || 0;
@@ -1135,8 +1166,9 @@ function updateRequestRow(requestId, updateFn) {
   if (lastRow < mapping.dataStartRow) throw new Error('No data rows found in sheet');
 
   var numRows = lastRow - mapping.dataStartRow + 1;
-  var maxCols = Math.max(sheet.getLastColumn(), mapping.colMeta || 37);
+  var maxCols = fmsLastMappedColumn(mapping);
   var values = sheet.getRange(mapping.dataStartRow, 1, numRows, maxCols).getValues();
+  var allMeta = readAllRequestMeta();
 
   var foundIndex = -1;
   var matchedRow = null;
@@ -1144,7 +1176,7 @@ function updateRequestRow(requestId, updateFn) {
   for (var i = 0; i < values.length; i++) {
     var r = values[i];
     var reqNo = String(r[mapping.colRequestNo - 1] || '').trim();
-    var meta = mapping.colMeta && mapping.colMeta <= r.length ? parseJsonSafely(r[mapping.colMeta - 1], null) : null;
+    var meta = allMeta[reqNo] || null;
     var metaId = meta && meta.id ? String(meta.id) : ('req-' + reqNo);
 
     if (String(requestId) === reqNo || String(requestId) === metaId) {
@@ -1157,7 +1189,7 @@ function updateRequestRow(requestId, updateFn) {
   if (foundIndex === -1) throw new Error('Request "' + requestId + '" not found in sheet.');
 
   var actualRowNumber = mapping.dataStartRow + foundIndex;
-  var metaObj = mapping.colMeta && mapping.colMeta <= matchedRow.length ? parseJsonSafely(matchedRow[mapping.colMeta - 1], {}) : {};
+  var metaObj = allMeta[String(matchedRow[mapping.colRequestNo - 1] || '').trim()] || {};
 
   var rowObj = {
     id: metaObj.id || ('req-' + matchedRow[mapping.colRequestNo - 1]),
@@ -1169,16 +1201,19 @@ function updateRequestRow(requestId, updateFn) {
     businessPurpose: String(matchedRow[mapping.colSummary - 1] || ''),
     assignedDeveloper: String(matchedRow[mapping.colDeveloper - 1] || ''),
     targetCompletionDate: formatDateCell(matchedRow[mapping.colTargetDate - 1]),
-    systemUrl: metaObj.systemUrl || '',
-    adminId: metaObj.adminId || '',
-    adminPassword: metaObj.adminPassword || '',
+    systemUrl: mapping.colSystemLink ? String(matchedRow[mapping.colSystemLink - 1] || '').trim() : '',
+    adminId: mapping.colAdminId ? String(matchedRow[mapping.colAdminId - 1] || '').trim() : '',
+    adminPassword: mapping.colAdminPassword ? String(matchedRow[mapping.colAdminPassword - 1] || '').trim() : '',
+    holdReason: mapping.colReasonForHold ? String(matchedRow[mapping.colReasonForHold - 1] || '').trim() : '',
+    holdExtendTargetDate: mapping.colHoldExtendTargetDate ? formatDateCell(matchedRow[mapping.colHoldExtendTargetDate - 1]) : '',
     currentStage: metaObj.currentStage || 'Introduce System',
     currentStatus: metaObj.currentStatus || 'Introduce: Pending',
     workStatus: metaObj.workStatus || null,
     progressPercent: metaObj.progressPercent || 0,
     latestRemarks: metaObj.latestRemarks || '',
     createdAt: metaObj.createdAt || formatTimestampCell(matchedRow[mapping.colTimestamps - 1]),
-    createdBy: metaObj.createdBy || 'Administrator',
+    requester: mapping.colRequester ? String(matchedRow[mapping.colRequester - 1] || '').trim() : '',
+    createdBy: (mapping.colRequester && String(matchedRow[mapping.colRequester - 1] || '').trim()) || metaObj.createdBy || 'Administrator',
     lastUpdatedAt: new Date().toISOString(),
     developmentCompletedAt: metaObj.developmentCompletedAt || '',
     introduction: metaObj.introduction || { isCompleted: false },
@@ -1207,8 +1242,7 @@ function updateRequestRow(requestId, updateFn) {
       if (mapping.colReasonForHold) safeSetCellValue(sheet, actualRowNumber, mapping.colReasonForHold, updated.holdReason || updated.latestRemarks || 'On Hold', mapping);
       if (mapping.colHoldExtendTargetDate && updated.holdExtendTargetDate) safeSetCellValue(sheet, actualRowNumber, mapping.colHoldExtendTargetDate, updated.holdExtendTargetDate, mapping);
     } else if (updated.workStatus === 'Completed') {
-      if (mapping.colReasonForHold) safeSetCellValue(sheet, actualRowNumber, mapping.colReasonForHold, '', mapping);
-      if (mapping.colHoldExtendTargetDate) safeSetCellValue(sheet, actualRowNumber, mapping.colHoldExtendTargetDate, '', mapping);
+      // Reason for Hold / Hold Extend Target Date stay as the permanent record; a new hold simply replaces them.
       if (updated.currentRevisionNo) {
         if (mapping.colRevisionNo) safeSetCellValue(sheet, actualRowNumber, mapping.colRevisionNo, updated.currentRevisionNo, mapping);
         if (mapping.colActual3 && !matchedRow[mapping.colActual3 - 1]) safeSetCellValue(sheet, actualRowNumber, mapping.colActual3, new Date(), mapping);
@@ -1218,9 +1252,11 @@ function updateRequestRow(requestId, updateFn) {
     }
   }
 
-  if (updated.systemUrl && mapping.colSystemLink) safeSetCellValue(sheet, actualRowNumber, mapping.colSystemLink, updated.systemUrl, mapping);
-  if (updated.adminId && mapping.colAdminId) safeSetCellValue(sheet, actualRowNumber, mapping.colAdminId, updated.adminId, mapping);
-  if (updated.adminPassword && mapping.colAdminPassword) safeSetCellValue(sheet, actualRowNumber, mapping.colAdminPassword, updated.adminPassword, mapping);
+  if (updated.workStatus === 'Completed') {
+    if (updated.systemUrl && mapping.colSystemLink) safeSetCellValue(sheet, actualRowNumber, mapping.colSystemLink, updated.systemUrl, mapping);
+    if (updated.adminId && mapping.colAdminId) safeSetCellValue(sheet, actualRowNumber, mapping.colAdminId, updated.adminId, mapping);
+    if (updated.adminPassword && mapping.colAdminPassword) safeSetCellValue(sheet, actualRowNumber, mapping.colAdminPassword, updated.adminPassword, mapping);
+  }
 
   // Historical testing/revision records are retained in metadata only.
   // 4. MIS closure
@@ -1231,9 +1267,7 @@ function updateRequestRow(requestId, updateFn) {
   }
 
   // Update metadata JSON
-  if (mapping.colMeta && !mapping.protectedCols[mapping.colMeta]) {
-    sheet.getRange(actualRowNumber, mapping.colMeta).setValue(safeStringifyMeta(updated));
-  }
+  writeRequestMeta(updated.requestNo, updated);
 
   bumpSyncVersion();
 
@@ -1395,6 +1429,12 @@ function userStageLabels() {
   return { requests:'System Requests', 'technical-new':'Raise Technical Help', 'technical-all':'All Technical Tickets', introduce:'Introduce System', create:'Create System', mis:'Update MIS System', 'repair-new':'New Issue Request', 'repair-approval':'Approval For Repair', 'repair-work':'Resolve Problem' };
 }
 
+// Roles: Admin has full access; User / EA / DME get the pages ticked for them on the Login Page sheet.
+function normalizeRole(value) {
+  var role = String(value || '').trim().toUpperCase();
+  return role === 'ADMIN' ? 'Admin' : role === 'EA' ? 'EA' : role === 'DME' ? 'DME' : 'User';
+}
+
 function loginSystems() {
   return { make:{ label:'Make System', stages:['requests','introduce','create','mis'] }, technical:{ label:'Technical Help', stages:['technical-new','technical-all'] }, repair:{ label:'Repair System', stages:['repair-new','repair-approval','repair-work'] } };
 }
@@ -1439,7 +1479,7 @@ function authorizeAppAction(action, token) {
   if (!username) throw new Error('Session expired. Please log in again.');
   var user = fetchAllUsers().filter(function(u) { return u.username === username; })[0];
   if (!user || user.status !== 'Active') throw new Error('Account inactive or removed.');
-  var admin = user.role === 'Admin' && !user.technicalOnly;
+  var admin = user.role === 'Admin';
   var adminActions = ['getUsers','saveUsers','createUser','updateUser','deleteUser','initSheet','setupLoginPermissions'];
   if (adminActions.indexOf(action) !== -1) { if (!admin) throw new Error('Only Admin can manage users and permissions.'); return user; }
   if (action === 'getSession' || action === 'getMasterOptions' || action === 'ping' || admin) return user;
@@ -1454,20 +1494,38 @@ function authorizeAppAction(action, token) {
   return user;
 }
 
+// Login Page core columns are found by heading (A..G by default). "Permitted Stages" is optional and never required:
+// access comes from the Access / View / Update columns.
+function loginCoreColumns(sheet) {
+  var headers = sheet.getRange(1, 1, 1, Math.max(7, sheet.getLastColumn())).getValues()[0].map(normalizeHeaderKey);
+  function find(names, fallback) {
+    for (var i = 0; i < names.length; i++) { var at = headers.indexOf(normalizeHeaderKey(names[i])); if (at !== -1) return at + 1; }
+    return fallback;
+  }
+  return {
+    fullName: find(['Full Name', 'Name'], 1), user: find(['User', 'Username', 'User Name'], 2), role: find(['Role'], 3),
+    password: find(['Password'], 4), status: find(['Status'], 5), department: find(['Department'], 6), created: find(['Created', 'Created At'], 7),
+    permitted: find(['Permitted Stages'], 0)
+  };
+}
+
 function loginAccessColumns(sheet, ensure) {
   var labels = userStageLabels(), systems = loginSystems();
-  var headers = sheet.getRange(1,1,1,Math.max(8,sheet.getLastColumn())).getValues()[0];
+  var headers = sheet.getRange(1,1,1,Math.max(7,sheet.getLastColumn())).getValues()[0];
+  // Match headings ignoring case, spaces and punctuation so small sheet edits do not drop access flags.
+  var headerKeys = headers.map(normalizeHeaderKey);
   var expected = [];
   Object.keys(systems).forEach(function(key) { expected.push(systems[key].label + ' Access'); });
   Object.keys(labels).forEach(function(key) { expected.push(labels[key] + ' View', labels[key] + ' Update'); });
   var mapping = {};
   expected.forEach(function(name) {
-    var column = headers.indexOf(name) + 1;
+    var column = headerKeys.indexOf(normalizeHeaderKey(name)) + 1;
     if (!column && ensure) {
       column = headers.length + 1;
       if (column > sheet.getMaxColumns()) sheet.insertColumnsAfter(sheet.getMaxColumns(), column - sheet.getMaxColumns());
       sheet.getRange(1,column).setValue(name).setFontWeight('bold');
       headers.push(name);
+      headerKeys.push(normalizeHeaderKey(name));
     }
     if (column) mapping[name] = column;
   });
@@ -1481,23 +1539,24 @@ function fetchAllUsers() {
     return [];
   }
 
-  var values = sheet.getRange(2, 1, lastRow - 1, Math.max(8,sheet.getLastColumn())).getValues();
+  var values = sheet.getRange(2, 1, lastRow - 1, Math.max(7,sheet.getLastColumn())).getValues();
+  var core = loginCoreColumns(sheet);
   var accessColumns = loginAccessColumns(sheet, false);
   var users = [];
 
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
-    var rawFullName = String(row[0] || '').trim();
-    var rawUsername = String(row[1] || '').trim();
+    var rawFullName = String(row[core.fullName - 1] || '').trim();
+    var rawUsername = String(row[core.user - 1] || '').trim();
     if (!rawFullName && !rawUsername) continue;
 
     var cleanUser = rawUsername.replace(/^@+/, '').replace(/[\(\)]/g, '').replace(/\s+/g, '').toLowerCase() || rawFullName.toLowerCase().replace(/[^a-z0-9]/g, '');
     var cleanName = rawFullName || cleanUser;
-    var role = String(row[2] || 'USER').trim().toUpperCase() === 'ADMIN' ? 'Admin' : 'User';
-    var status = String(row[4] || 'ACTIVE').trim().toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active';
-    var password = String(row[3] || 'password123').trim() || 'password123';
-    var department = String(row[5] || 'General').trim();
-    var permittedStagesText = String(row[7] || '').trim();
+    var role = normalizeRole(row[core.role - 1]);
+    var status = String(row[core.status - 1] || 'ACTIVE').trim().toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active';
+    var password = String(row[core.password - 1] || 'password123').trim() || 'password123';
+    var department = String(row[core.department - 1] || 'General').trim();
+    var permittedStagesText = core.permitted ? String(row[core.permitted - 1] || '').trim() : '';
 
     var permissions = {};
     var stageLabels = userStageLabels();
@@ -1545,26 +1604,18 @@ function fetchAllUsers() {
         permissions[id] = { view:systemAccess[key] && view, update:systemAccess[key] && view && update, edit:role === 'Admin', approve:systemAccess[key] && view && update };
       });
     });
-    var technicalOnly = password.indexOf('PMMPL') === 0;
-    if (technicalOnly) {
-      Object.keys(permissions).forEach(function(key) { permissions[key] = {view:false, edit:false, approve:false}; });
-      permissions['technical-new'] = {view:true, update:true, edit:false, approve:false};
-      permissions['technical-all'] = {view:true, update:false, edit:false, approve:false};
-      systemAccess = {make:false, technical:true, repair:false};
-      permittedStagesText = 'Stages: Raise Technical Help, All Technical Tickets';
-    }
+    var grantedLabels = stageList.filter(function(id) { return permissions[id] && permissions[id].view; }).map(function(id) { return stageLabels[id]; });
     users.push({
-      technicalOnly: technicalOnly,
       systemAccess: systemAccess,
       id: 'usr-sheet-' + cleanUser,
       username: cleanUser,
       fullName: cleanName,
       role: role,
       status: status,
-      permittedStagesText: permittedStagesText || (role === 'Admin' ? 'All Stages (Admin Full Access)' : '1 of 6 Stages (View)'),
+      permittedStagesText: role === 'Admin' ? 'All Stages (Admin Full Access)' : 'Stages: ' + (grantedLabels.join(', ') || 'None'),
       permissions: permissions,
       department: department,
-      createdAt: row[6] instanceof Date ? row[6].toISOString() : String(row[6] || ''),
+      createdAt: row[core.created - 1] instanceof Date ? row[core.created - 1].toISOString() : String(row[core.created - 1] || ''),
       password: password
     });
   }
@@ -1576,34 +1627,33 @@ function handleSaveUsers(users) {
   if (!Array.isArray(users)) users = [];
   var sheet = getLoginSheet();
   var accessColumns = loginAccessColumns(sheet, true);
+  var core = loginCoreColumns(sheet);
   var labels = userStageLabels(), systems = loginSystems();
   var accessRows = [];
   var rowData = users.map(function(u) {
-    var roleStr = (u.role || 'User').toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER';
+    var roleStr = normalizeRole(u.role).toUpperCase();
     var statusStr = (u.status || 'Active').toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
     var permText = roleStr === 'ADMIN' ? 'All Stages (Admin Full Access)' : (u.permittedStagesText || '1 of 6 Stages (View)');
     if (roleStr !== 'ADMIN' && u.permissions) {
       var granted = Object.keys(labels).filter(function(key) { return u.permissions[key] && u.permissions[key].view; }).map(function(key) { return labels[key]; });
       permText = 'Stages: ' + (granted.length ? granted.join(', ') : 'None');
     }
-    if (String(u.password || '').indexOf('PMMPL') === 0) permText = 'Stages: Raise Technical Help, All Technical Tickets';
-    var restricted = String(u.password || '').indexOf('PMMPL') === 0;
     var access = {}, allowedLabels = [];
     Object.keys(systems).forEach(function(key) {
       var system = systems[key];
-      var enabled = restricted ? key === 'technical' : roleStr === 'ADMIN' || (u.systemAccess && u.systemAccess[key] !== undefined ? Boolean(u.systemAccess[key]) : system.stages.some(function(id) { return u.permissions && u.permissions[id] && u.permissions[id].view; }));
+      var enabled = roleStr === 'ADMIN' || (u.systemAccess && u.systemAccess[key] !== undefined ? Boolean(u.systemAccess[key]) : system.stages.some(function(id) { return u.permissions && u.permissions[id] && u.permissions[id].view; }));
       access[system.label + ' Access'] = enabled ? 'Yes' : 'No';
       system.stages.forEach(function(id) {
         var p = u.permissions && u.permissions[id] || {};
-        var view = enabled && (restricted || roleStr === 'ADMIN' || p.view);
-        var update = view && (restricted ? id === 'technical-new' : roleStr === 'ADMIN' || p.update);
+        var view = enabled && (roleStr === 'ADMIN' || p.view);
+        var update = view && (roleStr === 'ADMIN' || p.update);
         access[labels[id] + ' View'] = view ? 'Yes' : 'No';
         access[labels[id] + ' Update'] = update ? 'Yes' : 'No';
         if (view) allowedLabels.push(labels[id]);
       });
     });
     accessRows.push(access);
-    if (roleStr !== 'ADMIN' || restricted) permText = 'Stages: ' + (allowedLabels.join(', ') || 'None');
+    if (roleStr !== 'ADMIN') permText = 'Stages: ' + (allowedLabels.join(', ') || 'None');
 
     return [
       u.fullName || u.username,
@@ -1617,16 +1667,20 @@ function handleSaveUsers(users) {
     ];
   });
 
+  // Core fields: [name, user, role, password, status, department, created, permitted]
+  var coreKeys = ['fullName', 'user', 'role', 'password', 'status', 'department', 'created', 'permitted'];
   var lastRow = sheet.getLastRow();
   if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, 8).clearContent();
+    coreKeys.forEach(function(key) { if (core[key]) sheet.getRange(2, core[key], lastRow - 1, 1).clearContent(); });
     Object.keys(accessColumns).forEach(function(name) { sheet.getRange(2, accessColumns[name], lastRow - 1, 1).clearContent(); });
   }
-  sheet.getRange(1, 1, 1, LOGIN_HEADERS.length).setValues([LOGIN_HEADERS]).setFontWeight('bold');
 
   if (rowData.length > 0) {
     if (rowData.length + 1 > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), rowData.length + 1 - sheet.getMaxRows());
-    sheet.getRange(2, 1, rowData.length, rowData[0].length).setValues(rowData);
+    coreKeys.forEach(function(key, index) {
+      if (!core[key]) return;
+      sheet.getRange(2, core[key], rowData.length, 1).setValues(rowData.map(function(r) { return [r[index]]; }));
+    });
     Object.keys(accessColumns).forEach(function(name) { sheet.getRange(2, accessColumns[name], accessRows.length, 1).setValues(accessRows.map(function(access) { return [access[name]]; })); });
   }
 
@@ -1643,7 +1697,7 @@ function handleCreateUser(userData) {
     id: userData.id || ('usr-sheet-' + cleanUsername),
     username: cleanUsername,
     fullName: userData.fullName ? userData.fullName.trim() : cleanUsername,
-    role: (userData.role || 'User').toUpperCase() === 'ADMIN' ? 'Admin' : 'User',
+    role: normalizeRole(userData.role),
     status: (userData.status || 'Active').toUpperCase() === 'INACTIVE' ? 'Inactive' : 'Active',
     department: userData.department ? userData.department.trim() : 'General',
     permissions: userData.permissions || {},
@@ -1667,7 +1721,7 @@ function handleUpdateUser(userId, userData) {
         id: users[i].id,
         username: userData.username ? String(userData.username).trim().toLowerCase() : users[i].username,
         fullName: userData.fullName !== undefined ? userData.fullName.trim() : users[i].fullName,
-        role: userData.role !== undefined ? ((String(userData.role).toUpperCase() === 'ADMIN') ? 'Admin' : 'User') : users[i].role,
+        role: userData.role !== undefined ? normalizeRole(userData.role) : users[i].role,
         status: userData.status !== undefined ? ((String(userData.status).toUpperCase() === 'INACTIVE') ? 'Inactive' : 'Active') : users[i].status,
         department: userData.department !== undefined ? String(userData.department).trim() : users[i].department,
         permissions: userData.permissions !== undefined ? userData.permissions : users[i].permissions,
@@ -1701,14 +1755,21 @@ function handleDeleteUser(userIdOrUsername) {
 function fetchMasterOptions() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var masterSheet = ss.getSheetByName(SHEET_MASTER);
+  if (!masterSheet) {
+    ss.getSheets().some(function(sheet) {
+      if (sheet.getName().trim().toLowerCase() === SHEET_MASTER.toLowerCase()) { masterSheet = sheet; return true; }
+      return false;
+    });
+  }
   var companies = [];
   var developers = [];
 
+  // Master sheet: column A = Firm Name (company), column B = DME (developer), data from row 2.
   if (masterSheet && masterSheet.getLastRow() >= 2) {
-    var vals = masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 2).getValues();
+    var vals = masterSheet.getRange(2, 1, masterSheet.getLastRow() - 1, 2).getDisplayValues();
     for (var i = 0; i < vals.length; i++) {
-      var f = vals[i][0] ? String(vals[i][0]).trim() : '';
-      var d = vals[i][1] ? String(vals[i][1]).trim() : '';
+      var f = String(vals[i][0] || '').trim();
+      var d = String(vals[i][1] || '').trim();
       if (f && companies.indexOf(f) === -1) companies.push(f);
       if (d && developers.indexOf(d) === -1) developers.push(d);
     }
@@ -1736,38 +1797,116 @@ function setupInitialSheets() {
 /**
  * Ultra-Fast Sync Version Management (<10ms)
  */
-// Repair template: row 6 headers, row 7+ data. G/K/L/O are formula-owned.
+// Repair template: row 6 headings (found by name, so inserted columns such as Assign Developer are fine), row 7+ data.
+// Planned and Time Delay columns are formula-owned and are never written.
+var REPAIR_META_PREFIX = 'REPAIRMETA_';
+
+function repairColumns(sheet) {
+  var headers = sheet.getRange(6, 1, 1, Math.max(sheet.getLastColumn(), 15)).getValues()[0];
+  var seen = {}, cols = { protectedCols: {} };
+  headers.forEach(function(h, i) {
+    var key = normalizeHeaderKey(h);
+    if (!key) return;
+    (seen[key] = seen[key] || []).push(i + 1);
+    if (/planned|delay/.test(key)) cols.protectedCols[i + 1] = true;
+  });
+  function first(names, n) {
+    for (var a = 0; a < names.length; a++) { var list = seen[normalizeHeaderKey(names[a])]; if (list && list[n || 0]) return list[n || 0]; }
+    return 0;
+  }
+  var map = {
+    timestamp: first(['Timestamp', 'Timestamps']), serial: first(['Sr No.', 'Sr No', 'Serial']),
+    requester: first(['Name Of The Person']), company: first(['Company']),
+    description: first(['Things Not Working']), location: first(['Location Of Problem']),
+    approvalPlanned: first(['Planned'], 0), approvalActual: first(['Actual'], 0), approvalDelay: first(['Time Delay', 'Delay'], 0),
+    problem: first(['Problem']), whereToSolve: first(['Where Have To Solve']),
+    developer: first(['Assign Developer', 'Assigned Developer', 'Developer', 'DME']),
+    repairPlanned: first(['Planned'], 1), repairActual: first(['Actual'], 1), status: first(['Status']), repairDelay: first(['Time Delay', 'Delay'], 1),
+    remark: first(['Problem Resolve Remark', 'Resolve Remark', 'Resolved Remark', 'Resolution Remark']),
+    attachments: first(['Photos / PDF', 'Screenshots / PDF Attachments', 'Attachments', 'Attachment', 'Image', 'Images', 'Photo'])
+  };
+  ['timestamp', 'serial', 'requester', 'company', 'description', 'location', 'approvalPlanned', 'approvalActual', 'problem', 'whereToSolve', 'repairPlanned', 'repairActual', 'status'].forEach(function(k) {
+    if (!map[k]) throw new Error('Repair sheet row 6 is missing the heading for: ' + k);
+  });
+  Object.keys(map).forEach(function(k) { cols[k] = map[k]; });
+  cols.width = Math.max.apply(null, Object.keys(map).map(function(k) { return map[k]; }));
+  return cols;
+}
+
 function repairSheet() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Repair');
   if (!sheet) throw new Error('Repair sheet not found.');
-  var expected = ['Timestamp', 'Sr No.', 'Name Of The Person', 'Company', 'Things Not Working', 'Location Of Problem', 'Planned', 'Actual', 'Problem', 'Where Have To Solve', 'Time Delay', 'Planned', 'Actual', 'Status', 'Time Delay'];
-  var headers = sheet.getRange(6, 1, 1, 15).getValues()[0];
-  expected.forEach(function(h, i) { if (normalizeHeaderKey(headers[i]) !== normalizeHeaderKey(h)) throw new Error('Repair header mismatch at column ' + (i + 1) + ': expected ' + h); });
+  repairColumns(sheet);
   return sheet;
+}
+
+function readRepairMeta(serial, legacyNote) {
+  var raw = PropertiesService.getScriptProperties().getProperty(REPAIR_META_PREFIX + serial);
+  var meta = parseJsonSafely(raw, null);
+  if (meta && typeof meta === 'object') return meta;
+  var legacy = parseJsonSafely(legacyNote, null); // older rows still carry JSON in the Sr No. cell note
+  return legacy && typeof legacy === 'object' ? legacy : {};
+}
+
+function writeRepairMeta(serial, meta) {
+  PropertiesService.getScriptProperties().setProperty(REPAIR_META_PREFIX + serial, JSON.stringify(meta));
+}
+
+function repairAttachments(cellValue, meta) {
+  var saved = Array.isArray(meta.attachments) ? meta.attachments : [];
+  var urls = String(cellValue || '').split(/\r?\n/).map(function(url) { return url.trim(); }).filter(function(url) { return /^https?:\/\//i.test(url); });
+  if (!urls.length) return saved;
+  // The sheet cell only holds links; names and file types saved at upload time are merged back in.
+  return urls.map(function(url, i) {
+    var known = saved.filter(function(file) { return file.url === url; })[0] || {};
+    return { id:'att-' + i, name:known.name || 'Attachment ' + (i + 1), type:known.type || '', url:url, driveUrl:url };
+  });
 }
 
 function repairRows(sheet) {
   if (sheet.getLastRow() < 7) return [];
-  var count = sheet.getLastRow() - 6;
-  var values = sheet.getRange(7, 1, count, 15).getValues();
-  var notes = sheet.getRange(7, 2, count, 1).getNotes();
+  var cols = repairColumns(sheet), count = sheet.getLastRow() - 6;
+  var values = sheet.getRange(7, 1, count, cols.width).getValues();
+  var notes = sheet.getRange(7, cols.serial, count, 1).getNotes();
   return values.map(function(r, i) {
-    if (!r[1]) return null;
-    var meta = parseJsonSafely(notes[i][0], {});
+    function get(k) { return cols[k] ? r[cols[k] - 1] : ''; }
+    if (!get('serial')) return null;
+    var meta = readRepairMeta(String(get('serial')), notes[i][0]);
     function date(v) { return v instanceof Date ? v.toISOString() : String(v || ''); }
-    return { id:String(r[1]), serial:String(r[1]), requester:r[2], company:r[3], description:r[4], location:r[5], createdAt:date(r[0]), version:meta.version || 1, idempotencyKey:meta.idempotencyKey || '', approval:{ planned:date(r[6]), actual:date(r[7]), delay:r[10] }, assessment:{ repairRequired:r[8], whereToSolve:r[9] }, repair:{ planned:date(r[11]), actual:date(r[12]), status:r[13], delay:r[14], remarks:meta.remarks || '' }, management:{}, activity:[], sheetRow:i + 7 };
+    return { id:String(get('serial')), serial:String(get('serial')), requester:get('requester'), company:get('company'), description:get('description'), location:get('location'), createdAt:date(get('timestamp')), version:meta.version || 1, idempotencyKey:meta.idempotencyKey || '', approval:{ planned:date(get('approvalPlanned')), actual:date(get('approvalActual')), delay:get('approvalDelay') }, raisedBy:meta.raisedBy || '', attachments:repairAttachments(get('attachments'), meta), assessment:{ repairRequired:get('problem'), whereToSolve:get('whereToSolve'), assignedDeveloper:String(get('developer') || meta.assignedDeveloper || '') }, repair:{ planned:date(get('repairPlanned')), actual:date(get('repairActual')), status:get('status'), delay:get('repairDelay'), remarks:String(get('remark') || meta.remarks || '') }, management:{}, activity:[], sheetRow:i + 7 };
   }).filter(function(r) { return r !== null; });
 }
 
 function fetchRepairIssues() { return repairRows(repairSheet()); }
 
+/** Menu action: moves JSON notes from the Sr No. cells into Script Properties and removes the notes. */
+function clearRepairNotes() {
+  var sheet = repairSheet(), cols = repairColumns(sheet);
+  if (sheet.getLastRow() < 7) return { cleared: 0 };
+  var count = sheet.getLastRow() - 6;
+  var serials = sheet.getRange(7, cols.serial, count, 1).getValues();
+  var notes = sheet.getRange(7, cols.serial, count, 1).getNotes();
+  var cleared = 0;
+  notes.forEach(function(n, i) {
+    var serial = String(serials[i][0] || '').trim();
+    if (!n[0]) return;
+    var meta = parseJsonSafely(n[0], null);
+    if (serial && meta && typeof meta === 'object') writeRepairMeta(serial, meta);
+    sheet.getRange(7 + i, cols.serial).setNote('');
+    cleared++;
+  });
+  try { SpreadsheetApp.getActiveSpreadsheet().toast('Repair notes cleared (' + cleared + ').', 'Make System', 4); } catch (e) {}
+  return { cleared: cleared };
+}
+
 function saveRepairIssue(action, payload) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    var sheet = repairSheet(), issues = repairRows(sheet), data = payload.data || {}, row, issue;
+    var sheet = repairSheet(), cols = repairColumns(sheet), issues = repairRows(sheet), data = payload.data || {}, row, issue;
     var meta = {};
-    var writes = [];
+    var writes = []; // [columnKey, value]
+    var serialValue = '';
     if (action === 'createRepairIssue') {
       ['requester', 'company', 'description'].forEach(function(k) { if (!String(data[k] || '').trim()) throw new Error(k + ' is required.'); });
       if (!payload.idempotencyKey) throw new Error('Submission key required.');
@@ -1776,32 +1915,45 @@ function saveRepairIssue(action, payload) {
       row = 7;
       issues.forEach(function(item) { row = Math.max(row, item.sheetRow + 1); var match = item.serial.match(/^RS\s*-\s*(\d+)$/); if (match) highest = Math.max(highest, Number(match[1])); });
       if (row > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), row - sheet.getMaxRows());
-      var serial = 'RS - ' + ('000' + (highest + 1)).slice(-Math.max(3, String(highest + 1).length));
-      meta = { version:1, idempotencyKey:payload.idempotencyKey };
-      writes = [[1,new Date()], [3,String(data.requester).trim()], [4,String(data.company).trim()], [5,String(data.description).trim()], [6,String(data.location || '').trim()], [14,'Pending Approval'], [2,serial]];
+      serialValue = 'RS - ' + ('000' + (highest + 1)).slice(-Math.max(3, String(highest + 1).length));
+      meta = { version:1, idempotencyKey:payload.idempotencyKey, raisedBy:String(payload.actorName || '') };
+      // Photos / PDFs were already uploaded to the Drive folder; keep only their links (max 5).
+      var files = (Array.isArray(data.attachments) ? data.attachments : []).slice(0, 5).map(function(att) { return { name:String(att.name || ''), type:String(att.type || ''), url:String(att.driveUrl || att.url || '').trim() }; });
+      files.forEach(function(file) { if (!/^https?:\/\//i.test(file.url)) throw new Error('Attachment has not uploaded to Drive: ' + (file.name || 'file')); });
+      writes = [['timestamp',new Date()], ['requester',String(data.requester).trim()], ['company',String(data.company).trim()], ['description',String(data.description).trim()], ['location',String(data.location || '').trim()], ['status','Pending Approval'], ['serial',serialValue]];
+      if (files.length) { meta.attachments = files; if (cols.attachments) writes.push(['attachments', files.map(function(f) { return f.url; }).join('\n')]); }
     } else {
       issue = issues.filter(function(item) { return item.id === String(payload.id); })[0];
       if (!issue) throw new Error('Repair issue not found.');
       if (issue.version !== payload.expectedVersion) throw new Error('This issue changed. Refresh and retry.');
       row = issue.sheetRow;
-      meta = parseJsonSafely(sheet.getRange(row, 2).getNote(), {});
+      serialValue = issue.serial;
+      meta = readRepairMeta(issue.serial, sheet.getRange(row, cols.serial).getNote());
       meta.version = issue.version + 1;
       if (action === 'approveRepairIssue') {
         if (issue.approval.actual) throw new Error('Issue already assessed.');
         if (['Yes','No'].indexOf(data.repairRequired) < 0 || !String(data.whereToSolve || '').trim()) throw new Error('Problem Yes/No and Where Have To Solve are required.');
-        writes = [[9,data.repairRequired], [10,String(data.whereToSolve).trim()], [14,data.repairRequired === 'Yes' ? 'Pending Repair' : 'No Repair Required'], [8,new Date()]];
+        var developer = String(data.assignedDeveloper || '').trim();
+        if (developer && fetchMasterOptions().developers.indexOf(developer) === -1) throw new Error('Choose a developer from the Master sheet.');
+        writes = [['problem',data.repairRequired], ['whereToSolve',String(data.whereToSolve).trim()], ['status',data.repairRequired === 'Yes' ? 'Pending Repair' : 'No Repair Required'], ['approvalActual',new Date()]];
+        if (developer) { if (cols.developer) writes.push(['developer', developer]); else meta.assignedDeveloper = developer; }
       } else {
         if (!issue.approval.actual || issue.assessment.repairRequired !== 'Yes' || issue.repair.actual) throw new Error('Issue is not pending repair.');
         if (!String(data.remarks || '').trim()) throw new Error('Problem Resolve Remark required.');
-        meta.remarks = String(data.remarks).trim();
-        writes = [[14,'Resolved'], [13,new Date()]];
+        var remark = String(data.remarks).trim();
+        if (cols.remark) writes.push(['remark', remark]); else meta.remarks = remark;
+        writes.push(['status','Resolved'], ['repairActual',new Date()]);
       }
     }
-    // Preflight ALL targets before writing; never overwrite any existing formula.
-    writes.forEach(function(w) { if ([7,11,12,15].indexOf(w[0]) !== -1 || sheet.getRange(row,w[0]).getFormula()) throw new Error('Repair formula protected at column ' + w[0]); });
-    writes.forEach(function(w) { var value = w[1]; if (typeof value === 'string' && /^[=+@-]/.test(value)) value = "'" + value; sheet.getRange(row,w[0]).setValue(value); });
-    sheet.getRange(row,2).setNote(JSON.stringify(meta));
-    [1,8,13].forEach(function(col) { if (writes.some(function(w) { return w[0] === col; })) sheet.getRange(row,col).setNumberFormat('MM/dd/yyyy HH:mm:ss'); });
+    // Preflight ALL targets before writing; never overwrite Planned/Time Delay columns or any existing formula.
+    writes.forEach(function(w) {
+      var column = cols[w[0]];
+      if (!column || cols.protectedCols[column] || sheet.getRange(row, column).getFormula()) throw new Error('Repair formula protected at column ' + column);
+    });
+    writes.forEach(function(w) { var value = w[1]; if (typeof value === 'string' && /^[=+@-]/.test(value)) value = "'" + value; sheet.getRange(row, cols[w[0]]).setValue(value); });
+    writeRepairMeta(serialValue, meta);
+    try { sheet.getRange(row, cols.serial).setNote(''); } catch (e) {}
+    ['timestamp','approvalActual','repairActual'].forEach(function(key) { if (writes.some(function(w) { return w[0] === key; })) sheet.getRange(row, cols[key]).setNumberFormat('MM/dd/yyyy HH:mm:ss'); });
     SpreadsheetApp.flush();
     return repairRows(sheet).filter(function(item) { return item.sheetRow === row; })[0];
   } finally { lock.releaseLock(); }
@@ -1827,6 +1979,9 @@ function onOpen() {
       .createMenu('⚡ Make System')
       .addItem('🔄 Format & Align Login Page', 'formatLoginPageSheet')
       .addItem('📋 Re-sync All Users', 'formatLoginPageSheet')
+      .addItem('🧹 Clear legacy metadata column', 'clearLegacyMetadataColumn')
+      .addItem('🧹 Clear Repair cell notes', 'clearRepairNotes')
+      .addItem('🧹 Remove history of deleted rows', 'cleanOrphanHistory')
       .addToUi();
   } catch (err) {}
 }
@@ -1870,24 +2025,95 @@ function formatTimestampCell(val) {
   return s;
 }
 
-function safeStringifyMeta(obj) {
-  if (!obj) return '{}';
-  try {
-    var clone = JSON.parse(JSON.stringify(obj));
-    if (clone.attachments) {
-      for (var i = 0; i < clone.attachments.length; i++) {
-        delete clone.attachments[i].base64Data;
-      }
-    }
-    var str = JSON.stringify(clone);
-    if (str.length > 45000 && clone.activityLog && clone.activityLog.length > 5) {
-      clone.activityLog = clone.activityLog.slice(-5);
-      str = JSON.stringify(clone);
-    }
-    return str;
-  } catch (e) {
-    return '{}';
+// Request history/progress is kept in Script Properties so no helper column is needed in the FMS sheet.
+var REQUEST_META_PREFIX = 'REQMETA_';
+
+function fmsLastMappedColumn(mapping) {
+  var max = 1;
+  Object.keys(mapping).forEach(function(key) {
+    if (/^col/.test(key) && typeof mapping[key] === 'number' && mapping[key] > max) max = mapping[key];
+  });
+  return max;
+}
+
+function readAllRequestMeta() {
+  var props = PropertiesService.getScriptProperties().getProperties() || {};
+  var out = {};
+  Object.keys(props).forEach(function(key) {
+    if (key.indexOf(REQUEST_META_PREFIX) !== 0) return;
+    var meta = parseJsonSafely(props[key], null);
+    if (meta && typeof meta === 'object') out[key.slice(REQUEST_META_PREFIX.length)] = meta;
+  });
+  return out;
+}
+
+function compactRequestMeta(obj) {
+  var clone = JSON.parse(JSON.stringify(obj || {}));
+  delete clone.developmentHistory;
+  delete clone.sheetRowIndex;
+  (clone.attachments || []).forEach(function(att) { delete att.base64Data; delete att.previewUrl; });
+  if (clone.activityLog && clone.activityLog.length > 8) clone.activityLog = clone.activityLog.slice(-8);
+  var str = JSON.stringify(clone);
+  if (str.length > 8500) { clone.activityLog = (clone.activityLog || []).slice(-3); clone.testingHistory = (clone.testingHistory || []).slice(-2); str = JSON.stringify(clone); }
+  return str.length > 8500 ? '{}' : str;
+}
+
+function writeRequestMeta(requestNo, obj) {
+  if (!requestNo) return;
+  PropertiesService.getScriptProperties().setProperty(REQUEST_META_PREFIX + requestNo, compactRequestMeta(obj));
+}
+
+/**
+ * One-time cleanup: moves any old _Make_System_Metadata column into Script Properties, then clears it.
+ * Run from the "Make System" menu. Planned/Delay columns are never touched.
+ */
+function clearLegacyMetadataColumn() {
+  var sheet = getRequestsSheet();
+  if (!sheet) return { cleared: 0 };
+  var mapping = findHeaderMapping(sheet);
+  var lastCol = sheet.getLastColumn(), last = sheet.getLastRow();
+  var headers = sheet.getRange(mapping.headerRow, 1, 1, lastCol).getValues()[0];
+  var cleared = 0;
+  headers.forEach(function(h, i) {
+    var key = normalizeHeaderKey(h), col = i + 1;
+    if (['makesystemmetadata', 'metadata', 'internalid', 'meta'].indexOf(key) === -1 || mapping.protectedCols[col] || last < mapping.dataStartRow) return;
+    var count = last - mapping.dataStartRow + 1;
+    var metas = sheet.getRange(mapping.dataStartRow, col, count, 1).getValues();
+    var nos = sheet.getRange(mapping.dataStartRow, mapping.colRequestNo, count, 1).getValues();
+    metas.forEach(function(m, r) {
+      var meta = parseJsonSafely(m[0], null), no = String(nos[r][0] || '').trim();
+      if (meta && typeof meta === 'object' && no) writeRequestMeta(no, meta);
+    });
+    sheet.getRange(mapping.dataStartRow, col, count, 1).clearContent();
+    sheet.getRange(mapping.headerRow, col).clearContent();
+    cleared++;
+  });
+  try { SpreadsheetApp.getActiveSpreadsheet().toast('Legacy metadata column cleared (' + cleared + ').', 'Make System', 4); } catch (e) {}
+  return { cleared: cleared };
+}
+
+/**
+ * Menu action: after demo / test rows are deleted from the sheets, removes the history that was kept for them
+ * (Script Properties), so nothing from a deleted record can come back on a new one. Sheet data is never touched.
+ */
+function cleanOrphanHistory() {
+  var props = PropertiesService.getScriptProperties();
+  var keep = {};
+  var fms = getRequestsSheet();
+  if (fms) {
+    var mapping = findHeaderMapping(fms), last = fms.getLastRow();
+    if (last >= mapping.dataStartRow) fms.getRange(mapping.dataStartRow, mapping.colRequestNo, last - mapping.dataStartRow + 1, 1).getValues().forEach(function(r) { if (r[0]) keep[REQUEST_META_PREFIX + String(r[0]).trim()] = true; });
   }
+  try { repairRows(repairSheet()).forEach(function(i) { keep[REPAIR_META_PREFIX + i.serial] = true; }); } catch (e) {}
+  try { fetchTechnicalTickets().forEach(function(t) { keep[TECH_META_PREFIX + String(t.ticketNo)] = true; }); } catch (e) {}
+  var removed = 0;
+  var all = typeof props.getProperties === 'function' ? props.getProperties() : {};
+  Object.keys(all).forEach(function(key) {
+    var isHistory = key.indexOf(REQUEST_META_PREFIX) === 0 || key.indexOf(REPAIR_META_PREFIX) === 0 || key.indexOf(TECH_META_PREFIX) === 0;
+    if (isHistory && !keep[key]) { props.deleteProperty(key); removed++; }
+  });
+  try { bumpSyncVersion(); SpreadsheetApp.getActiveSpreadsheet().toast('Removed history of deleted rows: ' + removed, 'Make System', 4); } catch (e) {}
+  return { removed: removed };
 }
 
 function buildDevelopmentHistoryFromRow(req) {

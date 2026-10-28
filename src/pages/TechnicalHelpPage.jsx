@@ -4,7 +4,6 @@ import { Modal } from '../components/Modal';
 import { technicalHelpService, getCachedTechnicalTickets, subscribeTechnicalTickets, listTechnicalTickets } from '../services/technicalHelpService';
 import { dataService } from '../services/dataService';
 import { loadLocalUsers } from '../services/authService';
-import { SAMPLE_COMPANIES } from '../constants/stages';
 import { GOOGLE_SHEETS_CONFIG } from '../config/integrationConfig';
 
 const formatDate = value => {
@@ -27,8 +26,8 @@ export function TechnicalHelpPage({ currentUser, onCreated, companyOptions = [] 
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; unsubscribe(); };
   }, []);
-  const companies = companyOptions.length ? companyOptions : SAMPLE_COMPANIES;
-  const empty = () => ({ submissionType: 'Self', onBehalfOf: '', customOnBehalf: '', category: 'Sheet/FMS', helpTicketNumber: '', company: companies[0] || '', application: '', sheetPage: '', url: '', problem: '', correction: '' });
+  const companies = companyOptions;
+  const empty = () => ({ submissionType: 'Self', onBehalfOf: '', customOnBehalf: '', category: 'Sheet/FMS', helpTicketNumber: '', company: '', application: '', sheetPage: '', url: '', problem: '', correction: '' });
   const [form, setForm] = useState(empty);
   const [attachments, setAttachments] = useState([]);
   const [message, setMessage] = useState('');
@@ -69,15 +68,16 @@ export function TechnicalHelpPage({ currentUser, onCreated, companyOptions = [] 
   const inputClass = 'mt-1.5 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400';
 const field = (name, label, _placeholder, required = true, textarea = false) => <label className="block text-xs font-semibold text-slate-800">{label} {required && <span className="text-red-500">*</span>}{textarea ? <textarea name={name} value={form[name]} onChange={update} required={required} rows={4} className={inputClass} /> : <input name={name} value={form[name]} onChange={update} required={required} type={name === 'url' ? 'url' : 'text'} className={inputClass} />}</label>;
   const closeForm = () => { if (!busy.current) { setOpen(false); setError(''); } };
-  const rows = tickets.filter(t => JSON.stringify(t).toLowerCase().includes(q.toLowerCase()));
+  const resolved = tickets.filter(t => t.actualDate || /^resolved$/i.test(String(t.status || '').trim()));
+  const rows = resolved.filter(t => JSON.stringify(t).toLowerCase().includes(q.toLowerCase()));
   return <div className="flex-1 overflow-y-auto bg-[#f7f9fc] p-4 sm:p-6"><div className="mx-auto max-w-6xl">
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-bold text-slate-900">Raise Technical Help Ticket</h1><p className="mt-1 text-xs text-slate-500"></p></div><button type="button" onClick={() => { setOpen(true); setMessage(''); setError(''); }} className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"><PlusCircle className="h-4 w-4" />Raise Ticket</button></div>
     {message && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">{message}</p>}
-    <section className="rounded-lg border border-slate-200 bg-white shadow-xs"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-800">History <span className="ml-2 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-600">{rows.length}</span></h2><div className="relative w-full sm:w-64"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input aria-label="Search history" placeholder="Search tickets..." value={q} onChange={e => setQ(e.target.value)} className="w-full rounded-md border border-slate-200 py-2 pl-9 pr-3 text-xs focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" /></div></div>
+    <section className="rounded-lg border border-slate-200 bg-white shadow-xs"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-800">Resolved History <span className="ml-2 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-600">{rows.length}</span></h2><div className="relative w-full sm:w-64"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input aria-label="Search history" placeholder="Search tickets..." value={q} onChange={e => setQ(e.target.value)} className="w-full rounded-md border border-slate-200 py-2 pl-9 pr-3 text-xs focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" /></div></div>
       {historyError && <p role="alert" className="m-4 rounded-lg bg-red-50 p-3 text-xs text-red-700">{historyError}</p>}
       <div className="overflow-x-auto"><table className="cards-on-phone w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Ticket', 'Requester', 'Company', 'Category', 'Application', 'Problem', 'Status', 'Created', 'Resolved'].map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>
         {rows.map(t => <tr key={t.ticketNo} className="border-t border-slate-100"><td data-label="Ticket" className="whitespace-nowrap p-3 font-semibold text-blue-700">{t.ticketNo}</td><td data-label="Requester" className="p-3">{t.onBehalfOf ? `${t.onBehalfOf} (by ${t.requester})` : t.requester}</td><td data-label="Company" className="p-3">{t.company}</td><td data-label="Category" className="p-3">{t.category}</td><td data-label="Application" className="p-3">{t.application}</td><td data-label="Problem" className="max-w-xs whitespace-pre-wrap p-3">{t.problem}</td><td data-label="Status" className="p-3">{t.status}</td><td data-label="Created" className="whitespace-nowrap p-3">{formatDate(t.createdAt)}</td><td data-label="Resolved" className="whitespace-nowrap p-3">{formatDate(t.actualDate)}</td></tr>)}
-        {!rows.length && <tr><td colSpan={9} data-empty className="p-8 text-center text-slate-400">{loading ? 'Loading tickets...' : 'No technical tickets found.'}</td></tr>}
+        {!rows.length && <tr><td colSpan={9} data-empty className="p-8 text-center text-slate-400">{loading ? 'Loading tickets...' : 'No resolved tickets yet.'}</td></tr>}
       </tbody></table></div></section>
     <Modal isOpen={open} onClose={closeForm} title="Raise Technical Help Ticket" large closeOnBackdrop={false}>
       {error && <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>}
@@ -85,7 +85,7 @@ const field = (name, label, _placeholder, required = true, textarea = false) => 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-xs sm:p-6"><h2 className="mb-5 flex items-center gap-2 text-sm font-bold"><Building className="h-4 w-4 text-blue-500" />Requester & System Identification</h2><div className="grid gap-5 md:grid-cols-2">
         <fieldset><legend className="mb-2 text-xs font-semibold">Raising For <span className="text-red-500">*</span></legend><div className="flex flex-wrap gap-3 text-xs">{['Self', 'On Behalf'].map(type => <label key={type} className="flex items-center gap-1.5"><input type="radio" name="submissionType" value={type} checked={form.submissionType === type} onChange={update} className="accent-blue-600" />{type === 'Self' ? `By Self (${currentUser?.fullName || 'User'})` : type}</label>)}</div></fieldset>
         {form.submissionType === 'On Behalf' && <div><label className="block text-xs font-semibold">On Behalf Of (Name & Role) <span className="text-red-500">*</span><select name="onBehalfOf" value={form.onBehalfOf} onChange={update} required className={inputClass}><option value="">-- Select Person (Name & Role) --</option>{loadLocalUsers().filter(u => u.status === 'Active').map(u => <option key={u.id} value={`${u.fullName} (${u.department || u.role})`}>{u.fullName} ({u.department || u.role})</option>)}<option value="Other">Other (Type Name & Role)</option></select></label>{form.onBehalfOf === 'Other' && field('customOnBehalf', 'Name & Role', 'e.g. Ramesh Kumar (Store In-charge)')}</div>}
-        <label className="block text-xs font-semibold">Company <span className="text-red-500">*</span><select name="company" value={form.company} onChange={update} required className={inputClass}>{companies.map(c => <option key={c}>{c}</option>)}</select></label>
+        <label className="block text-xs font-semibold">Company <span className="text-red-500">*</span><select name="company" value={form.company} onChange={update} required className={inputClass}><option value="">Select company</option>{companies.map(c => <option key={c}>{c}</option>)}</select></label>
         <label className="block text-xs font-semibold">Category <span className="text-red-500">*</span><select name="category" value={form.category} onChange={update} required className={inputClass}>{['Sheet/FMS', 'Google Forms', 'Website', 'React Application', 'Other'].map(c => <option key={c}>{c}</option>)}</select></label>
         {field('helpTicketNumber', 'External Help Ticket (Optional)', 'e.g. HD-9842', false)}
       </div></section>

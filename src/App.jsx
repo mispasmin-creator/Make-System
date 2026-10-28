@@ -17,6 +17,7 @@ import { AdminMasterPage } from './pages/AdminMasterPage';
 import { LoginPage } from './pages/LoginPage';
 import { AccessDeniedPage } from './pages/AccessDeniedPage';
 import { TechnicalHelpPage } from './pages/TechnicalHelpPage';
+import { resetUserCaches, setCacheOwner } from './utils/userCache';
 import { TechnicalTicketsPage } from './pages/TechnicalTicketsPage';
 import { RepairSystemPage } from './pages/RepairSystemPage';
 import { RepairRecordsPage } from './pages/RepairRecordsPage';
@@ -215,6 +216,10 @@ export default function App() {
 
   // Auth Handlers
   const handleLoginSuccess = (user) => {
+    // Start from an empty cache: the first screen must only ever contain this user's own data.
+    resetUserCaches();
+    setCacheOwner(user.username);
+    setRequests([]);
     setCurrentUser(user);
     showToast(`Welcome back, ${user.fullName}!`, 'success');
     // Ensure activePage is permitted
@@ -227,6 +232,9 @@ export default function App() {
 
   const handleLogout = () => {
     authService.logout();
+    resetUserCaches();
+    setCacheOwner(null);
+    setRequests([]);
     setCurrentUser(null);
     showToast('Signed out of Make System.', 'info');
   };
@@ -234,6 +242,9 @@ export default function App() {
   useEffect(() => {
     const onExpired = () => {
       authService.logout();
+      resetUserCaches();
+      setCacheOwner(null);
+      setRequests([]);
       setCurrentUser(null);
       showToast('Session expired. Please log in again.', 'error');
     };
@@ -390,7 +401,7 @@ export default function App() {
 
                 {activePage === 'technical-new' && (authService.canAccessStage(currentUser, 'technical-new', 'update') ? <TechnicalHelpPage currentUser={currentUser} companyOptions={masterOptions.companies} onCreated={() => setTechnicalRefreshKey(v => v + 1)} /> : <div className="p-6 text-sm text-slate-500">View only. Submission access is not enabled.</div>)}
                 {activePage === 'technical-all' && <TechnicalTicketsPage refreshKey={technicalRefreshKey} canSubmit={authService.canAccessStage(currentUser, 'technical-all', 'update')} />}
-                {['repair-system', 'repair-problem'].includes(activePage) && <RepairRecordsPage key={activePage} stage={activePage === 'repair-problem' ? 'repair' : 'approval'} currentUser={currentUser} onNavigate={setActivePage} />}
+                {['repair-system', 'repair-problem'].includes(activePage) && <RepairRecordsPage key={activePage} stage={activePage === 'repair-problem' ? 'repair' : 'approval'} currentUser={currentUser} onNavigate={setActivePage} developerOptions={masterOptions.developers} />}
                 {REPAIR_NAV_ITEMS.filter(item => item.view !== 'records').map(item => activePage === item.id && <RepairSystemPage key={item.id} view={item.view} onNavigate={setActivePage} currentUser={currentUser} companyOptions={masterOptions.companies} />)}
 
                 {activePage === 'introduce' && (

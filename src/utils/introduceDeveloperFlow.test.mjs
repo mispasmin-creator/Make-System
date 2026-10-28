@@ -15,7 +15,7 @@ const backend = vm.createContext({
     assert.equal(name, 'Master');
     return { getLastRow: () => masterRows.length + 1, getRange: (row, col, count, width) => {
       assert.deepEqual([row, col, count, width], [2, 1, masterRows.length, 2]);
-      return { getValues: () => masterRows };
+      return { getValues: () => masterRows, getDisplayValues: () => masterRows };
     } };
   } }) },
 });

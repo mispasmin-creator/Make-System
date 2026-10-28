@@ -8,12 +8,12 @@ assert.equal(hasStageAccess(user,'repair-problem','update'),true);
 assert.equal(hasStageAccess(user,'repair-problem','edit'),false);
 assert.equal(hasStageAccess(user,'admin'),false);
 assert.deepEqual(SYSTEMS.filter(s=>s.stages.some(id=>hasStageAccess(user,id))).map(s=>s.id),['repair']);
-const restricted={...user,role:'Admin',password:'PMMPL123'};
-assert.equal(hasStageAccess(restricted,'technical-new','update'),true);
-assert.equal(hasStageAccess(restricted,'technical-all'),true);
-assert.equal(hasStageAccess(restricted,'technical-all','update'),false);
-assert.equal(hasStageAccess(restricted,'admin'),false);
+// A PMMPL-prefixed password no longer restricts anyone: access comes only from the saved permissions.
+const pmmpl={...user,password:'PMMPL123'};
+assert.equal(hasStageAccess(pmmpl,'repair-system'),true);
+assert.equal(hasStageAccess(pmmpl,'technical-new'),false);
+assert.equal(hasStageAccess({...pmmpl,role:'Admin'},'admin'),true);
 assert.equal(hasStageAccess({...user,status:'Inactive'},'repair-problem'),false);
 assert.equal(hasStageAccess({role:'Admin',status:'Active'},'admin'),true);
 assert.equal(normalizeAccess({role:'User',permissions:{create:{view:true,edit:true}}}).permissions.create.update,false);
-console.log('PASS: three-system isolation, aliases, View/Update separation, admin-only edit, inactive users, legacy migration and PMMPL restriction.');
+console.log('PASS: three-system isolation, aliases, View/Update separation, admin-only edit, inactive users, legacy migration and no password-based restriction.');

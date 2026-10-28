@@ -13,14 +13,22 @@ const sheet = {
   getRange: (row, column) => ({ getValues: () => row === 6 ? [headers] : column === headers.indexOf('Ticket') + 1 ? existingTickets : existingAssignees, setValue: value => writes.push({ row, column, value }), setNumberFormat: value => formats.push(value), setNote: () => { throw new Error('Extra metadata must not be saved'); } })
 };
 const context = {
-  SpreadsheetApp: { flush() {}, getActiveSpreadsheet: () => ({ getSheetByName: () => ({ getLastRow: () => 3, getRange: () => ({ getValues: () => [['DME One'], ['DME Two']] }) }) }) },
+  SpreadsheetApp: { flush() {}, getActiveSpreadsheet: () => ({ getSheetByName: () => ({ getLastRow: () => 3, getRange: () => ({ getValues: () => [['DME One'], ['DME Two']], getDisplayValues: () => [['Firm A', 'DME One'], ['Firm B', 'DME Two']] }) }) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+  PropertiesService: { getScriptProperties: () => ({ getProperties: () => ({}), setProperty() {}, getProperty: () => null }) },
   Utilities: { formatDate: () => '22/10/2026 12:00:00', getUuid: () => '12345678-abcd' }
 };
 vm.createContext(context);
 vm.runInContext(code, context);
 headers = Array.from(context.TECHNICAL_HELP_HEADERS);
 context.getTechnicalHelpSheet = () => sheet;
+// Only active users with Department "IT Resolver" receive tickets, in Login Page order.
+context.fetchAllUsers = () => [
+  { fullName: 'Resolver One', status: 'Active', department: 'IT Resolver' },
+  { fullName: 'Plain User', status: 'Active', department: 'General' },
+  { fullName: 'Inactive Resolver', status: 'Inactive', department: 'IT Resolver' },
+  { fullName: 'Resolver Two', status: 'Active', department: 'it  resolver' }
+];
 context.handleCreateTechnicalTicket({ company: 'PMMPL', application: 'FMS', sheetPage: 'Orders', problem: 'Formula error', correction: 'Fix formula', requester: 'Admin' });
 assert(writes.length > 0);
 assert(writes.every(w => w.row === 7));
@@ -47,18 +55,18 @@ assert.equal(withoutReassign.overdueremaining, undefined);
 assert(writes.every(w => ![withoutReassign.planned, withoutReassign.delay].includes(w.column)));
 console.log('PASS: Reassign omitted; shifted Planned and Delay columns remain untouched.');
 assert.equal(writes.find(w => w.column === withoutReassign.ticket).value, 'TH - 001');
-assert.equal(writes.find(w => w.column === withoutReassign.assignedto).value, 'DME One');
+assert.equal(writes.find(w => w.column === withoutReassign.assignedto).value, 'Resolver One');
 assert.equal(Object.prototype.toString.call(writes.find(w => w.column === withoutReassign.requestdateist).value), '[object Date]');
 assert(formats.every(f => f === 'MM/dd/yyyy HH:mm:ss'));
-existingTickets = [['TH - 001']]; existingAssignees = [['DME One']]; writes.length = 0;
+existingTickets = [['TH - 001']]; existingAssignees = [['Resolver One']]; writes.length = 0;
 context.handleCreateTechnicalTicket({ company: 'PMMPL', application: 'FMS', sheetPage: 'Orders', problem: 'Formula error', correction: 'Fix formula' });
 assert.equal(writes.find(w => w.column === withoutReassign.ticket).value, 'TH - 002');
-assert.equal(writes.find(w => w.column === withoutReassign.assignedto).value, 'DME Two');
-existingTickets.push(['TH - 002']); existingAssignees.push(['DME Two']); writes.length = 0;
+assert.equal(writes.find(w => w.column === withoutReassign.assignedto).value, 'Resolver Two');
+existingTickets.push(['TH - 002']); existingAssignees.push(['Resolver Two']); writes.length = 0;
 context.handleCreateTechnicalTicket({ company: 'PMMPL', application: 'FMS', sheetPage: 'Orders', problem: 'Formula error', correction: 'Fix formula' });
 assert.equal(writes.find(w => w.column === withoutReassign.ticket).value, 'TH - 003');
-assert.equal(writes.find(w => w.column === withoutReassign.assignedto).value, 'DME One');
-console.log('PASS: real date values, date formatting, sequential ticket numbers and alternating Master DMEs.');
+assert.equal(writes.find(w => w.column === withoutReassign.assignedto).value, 'Resolver One');
+console.log('PASS: real date values, date formatting, sequential ticket numbers and alternating IT Resolver users.');
 writes.length = 0;
 context.handleCreateTechnicalTicket({ company: 'PMMPL', application: 'FMS', sheetPage: 'Orders', problem: 'Formula error', correction: 'Fix formula', attachments: [{ driveUrl:'https://drive.google.com/file/d/one/view' }, { url:'https://drive.google.com/file/d/two/view' }] });
 assert.equal(writes.find(w => w.column === 10).value, 'https://drive.google.com/file/d/one/view\nhttps://drive.google.com/file/d/two/view');

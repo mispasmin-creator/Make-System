@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { parse } from '@babel/parser';
 import * as constants from '../constants/stages.js';
 import { normalizeSystemRequest } from '../utils/systemWorkflow.mjs';
+import { sortNewestFirst } from '../utils/sortUtils.js';
 
 const values = new Map();
 let live = false;
@@ -24,7 +25,7 @@ for (const node of [...ast.program.body].reverse()) {
 }
 source = source.replace(/export /g, '');
 const context = vm.createContext({
-  ...constants, console,
+  ...constants, console, sortNewestFirst,
   normalizeLegacyStage: normalizeSystemRequest,
   localStorage: { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value) },
   setTimeout, clearTimeout, AbortController, URLSearchParams,

@@ -1,5 +1,6 @@
 import { callGoogleAppsScript } from './dataService';
 import { isGoogleSheetsConnected } from '../config/integrationConfig';
+import { sortNewestFirst } from '../utils/sortUtils';
 
 const KEY = 'make_system_technical_help_v1';
 const readLocal = () => { try { const value = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } };
@@ -15,6 +16,13 @@ const saveLocal = (v) => {
 };
 
 export const getCachedTechnicalTickets = () => memory;
+// Called when a different person signs in or out, so one user's tickets are never shown to the next user.
+export function clearTechnicalCache() {
+  memory = [];
+  revision++;
+  try { localStorage.removeItem(KEY); } catch { /* Storage unavailable: memory is already cleared. */ }
+  listeners.forEach(listener => listener(memory));
+}
 export function subscribeTechnicalTickets(listener) {
   listeners.add(listener);
   const onStorage = event => { if (event.key === KEY) { memory = readLocal(); revision++; listener(memory); } };
@@ -30,7 +38,7 @@ export async function listTechnicalTickets() {
     const res = await callGoogleAppsScript('getTechnicalTickets', {}, 'GET');
     if (!Array.isArray(res.tickets)) throw new Error('Unable to read technical tickets. Check the Apps Script deployment.');
     // A read started before a successful write must not revert that write.
-    if (revision === startedAtRevision) saveLocal(res.tickets);
+    if (revision === startedAtRevision) saveLocal(sortNewestFirst(res.tickets, 'createdAt', 'ticketNo'));
     return memory;
   })().finally(() => { inFlight = null; });
   return inFlight;
@@ -43,7 +51,7 @@ export async function createTechnicalTicket(data) {
     if (!res.ticket) throw new Error('Ticket was not saved. Update the Apps Script deployment and retry.');
     Object.assign(ticket, res.ticket);
   }
-  const all = [ticket, ...memory]; saveLocal(all); return ticket;
+  saveLocal(sortNewestFirst([ticket, ...memory.filter(t => t.ticketNo !== ticket.ticketNo)], 'createdAt', 'ticketNo')); return ticket;
 }
 
 export async function submitTechnicalTicket(ticketNo, resolvedRemark) {

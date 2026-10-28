@@ -130,13 +130,12 @@ export function RequestDetailsModal({ isOpen, onClose, request, activePage = 're
               </div>
               <div className="w-36 h-2 bg-slate-100 rounded-full overflow-hidden p-0.5 ml-auto border border-slate-200/60">
                 <div
-                  className={`h-full rounded-full transition-all duration-300 ${
-                    isHold
-                      ? 'bg-rose-500'
-                      : request.progressPercent === 100
+                  className={`h-full rounded-full transition-all duration-300 ${isHold
+                    ? 'bg-rose-500'
+                    : request.progressPercent === 100
                       ? 'bg-emerald-500'
                       : 'bg-indigo-600'
-                  }`}
+                    }`}
                   style={{ width: `${request.progressPercent || 0}%` }}
                 />
               </div>
@@ -173,7 +172,7 @@ export function RequestDetailsModal({ isOpen, onClose, request, activePage = 're
               </div>
               {request.holdExtendTargetDate && (
                 <div className="text-[11px] font-semibold text-rose-700 pt-1 border-t border-rose-100/80">
-                  Hold Extend Target Date (Col S): <strong>{formatDisplayDate(request.holdExtendTargetDate)}</strong>
+                  Hold Extend Target Date  : <strong>{formatDisplayDate(request.holdExtendTargetDate)}</strong>
                 </div>
               )}
             </div>
@@ -383,7 +382,7 @@ export function RequestDetailsModal({ isOpen, onClose, request, activePage = 're
           </div>
         ) : (
           <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-400">
-            System URL and Admin Credentials will appear here once Development is completed.
+
           </div>
         )}
 

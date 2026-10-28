@@ -96,6 +96,9 @@ export function UpdateMisSystemPage({
                   Request No.
                 </th>
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                  Requester
+                </th>
+                <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                   Company
                 </th>
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
@@ -135,7 +138,7 @@ export function UpdateMisSystemPage({
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
               {paginatedList.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'pending' ? 8 : 9} className="py-12 text-center text-slate-400">
+                  <td colSpan={activeTab === 'pending' ? 9 : 10} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <Database className="w-8 h-8 text-slate-300" />
                       <span className="font-semibold text-slate-700">
@@ -186,6 +189,10 @@ export function UpdateMisSystemPage({
                           <StatusBadge type="revision" value={req.currentRevisionNo} />
                         )}
                       </div>
+                    </td>
+
+                    <td className="px-3.5 py-2.5 font-medium text-slate-700 whitespace-nowrap">
+                      {req.requester || req.createdBy || '—'}
                     </td>
 
                     <td className="px-3.5 py-2.5 font-semibold text-slate-800 whitespace-nowrap">

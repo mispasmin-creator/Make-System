@@ -85,13 +85,14 @@ export function IntroduceSystemPage({
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-[0_6px_24px_-4px_rgba(15,23,42,0.05),0_2px_8px_-1px_rgba(15,23,42,0.02)] overflow-hidden flex flex-col flex-1 min-h-0">
         <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className={`w-full table-fixed border-collapse text-left text-xs ${activeTab === 'pending' ? 'min-w-[1240px]' : 'min-w-[1840px]'}`}>
+          <table className={`w-full table-fixed border-collapse text-left text-xs ${activeTab === 'pending' ? 'min-w-[1420px]' : 'min-w-[2020px]'}`}>
             <colgroup>
               <col style={{ width: activeTab === 'pending' ? 190 : 110 }} />
               <col style={{ width: 135 }} />
+              <col style={{ width: 150 }} />
               <col style={{ width: 120 }} />
               <col />
-              <col style={{ width: 280 }} />
+              <col style={{ width: 300 }} />
               <col style={{ width: 80 }} />
               {activeTab === 'pending' ? (
                 <col style={{ width: 220 }} />
@@ -114,12 +115,15 @@ export function IntroduceSystemPage({
                   Request No.
                 </th>
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                  Requester
+                </th>
+                <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                   Company
                 </th>
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                   System Name
                 </th>
-                <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px]">
+                <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                   Business Purpose &amp; Justification
                 </th>
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap text-center">
@@ -153,7 +157,7 @@ export function IntroduceSystemPage({
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
               {paginatedList.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'pending' ? 7 : 10} className="py-12 text-center text-slate-400">
+                  <td colSpan={activeTab === 'pending' ? 8 : 11} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <Handshake className="w-8 h-8 text-slate-300" />
                       <span className="font-semibold text-slate-700">
@@ -199,6 +203,10 @@ export function IntroduceSystemPage({
 
                     <td className="px-3.5 py-2.5 font-mono font-bold text-indigo-600 whitespace-nowrap">
                       {req.requestNo}
+                    </td>
+
+                    <td className="px-3.5 py-2.5 font-medium text-slate-700 whitespace-nowrap">
+                      {req.requester || req.createdBy || '—'}
                     </td>
 
                     <td className="px-3.5 py-2.5 font-semibold text-slate-800 whitespace-nowrap">

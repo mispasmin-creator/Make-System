@@ -1,5 +1,5 @@
 import { REPAIR_CONFIG } from '../config/repairConfig';
-import { authService, isTechnicalOnlyUser } from './authService';
+import { authService } from './authService';
 import { repairSheetAdapter, repairSheetConnected } from './repairSheetAdapter';
 import { addRepairWorkingDays, transitionIssue, getSummary, getMISRows } from '../utils/repairWorkflow.mjs';
 
@@ -18,6 +18,8 @@ export function configureRepairAdapter(value) {
   if (!value || operations.some(key => typeof value[key] !== 'function')) throw new Error('Repair backend adapter is incomplete.');
   adapter = value; demo = false; cache = []; emit();
 }
+// Live issues are cached in memory only; drop them whenever the signed-in user changes.
+export function clearRepairCache() { if (!demo) { cache = []; revision++; emit(); } }
 export function enableRepairDemo() { demo = true; cache = readDemo().issues; emit(); }
 export function getRepairMode() { return demo ? 'demo' : adapter ? 'connected' : 'unconfigured'; }
 export function getCachedRepairIssues() { return cache; }
@@ -25,7 +27,6 @@ export function subscribeRepairIssues(listener) { listeners.add(listener); retur
 
 export function canRepairAction(user, action) {
   if (!user || user.status !== 'Active') return false;
-  if (isTechnicalOnlyUser(user)) return false;
   if (user.role === 'Admin') return true;
   if (action === 'create') return authService.canAccessStage(user, 'repair-new', 'update');
   return authService.canAccessStage(user, REPAIR_CONFIG.permissionStages[action], 'update');
@@ -81,7 +82,7 @@ export const repairService = {
       const existing = store.issues.find(i => i.idempotencyKey === idempotencyKey);
       if (existing) return existing;
       const now = new Date().toISOString();
-      const issue = { id: crypto.randomUUID(), serial: `RS - ${String(++store.sequence).padStart(3, '0')}`, requester: data.requester.trim(), company: data.company, description: data.description.trim(), location: data.location?.trim() || '', createdAt: now, version: 1, idempotencyKey, approval: { planned: addRepairWorkingDays(now, 1) }, repair: {}, management: {}, activity: [{ action: 'Issue Request', actor: user.fullName || user.username, actorId: user.id, timestamp: now }] };
+      const issue = { id: crypto.randomUUID(), serial: `RS - ${String(++store.sequence).padStart(3, '0')}`, requester: data.requester.trim(), company: data.company, description: data.description.trim(), location: data.location?.trim() || '', attachments: Array.isArray(data.attachments) ? data.attachments : [], createdAt: now, version: 1, idempotencyKey, approval: { planned: addRepairWorkingDays(now, 1) }, repair: {}, management: {}, activity: [{ action: 'Issue Request', actor: user.fullName || user.username, actorId: user.id, timestamp: now }] };
       store.issues.unshift(issue); return issue;
     });
   },

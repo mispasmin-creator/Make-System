@@ -11,6 +11,7 @@ import {
   USER_STATUS,
   getFullAdminPermissions
 } from '../services/authService';
+import { ROLE_OPTIONS, presetPermissions, deriveSystemAccess } from '../utils/accessPresets.mjs';
 
 export function UserFormModal({
   isOpen,
@@ -30,17 +31,24 @@ export function UserFormModal({
     password: ''
   });
 
-  const [permissions, setPermissions] = useState(() => userToEdit?.permissions || {});
-  const [systemAccess, setSystemAccess] = useState(() => Object.fromEntries(SYSTEMS.map(system => [system.id, userToEdit?.systemAccess?.[system.id] ?? system.stages.some(id => userToEdit?.permissions?.[id]?.view)])));
+  // No default pages: a new user starts with nothing ticked and access is given in the Permissions table below.
+  const [permissions, setPermissions] = useState(() => userToEdit?.permissions || presetPermissions(USER_ROLES.USER));
+  const [systemAccess, setSystemAccess] = useState(() => userToEdit
+    ? Object.fromEntries(SYSTEMS.map(system => [system.id, userToEdit.systemAccess?.[system.id] ?? system.stages.some(id => userToEdit.permissions?.[id]?.view)]))
+    : deriveSystemAccess(presetPermissions(USER_ROLES.USER)));
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
 
-  // When Role changes to Admin, automatically check all permissions
+  // Role never ticks pages by itself. Only Admin (always full access) and leaving Admin (back to nothing, so full
+  // access is not kept by accident) change the table; for User / EA / DME the ticks stay exactly as they are.
   const handleRoleChange = (newRole) => {
+    const wasAdmin = formData.role === USER_ROLES.ADMIN;
     setFormData(prev => ({ ...prev, role: newRole }));
-    if (newRole === USER_ROLES.ADMIN) {
-      setPermissions(getFullAdminPermissions());
+    if (newRole === USER_ROLES.ADMIN || wasAdmin) {
+      const next = presetPermissions(newRole === USER_ROLES.ADMIN ? USER_ROLES.ADMIN : USER_ROLES.USER);
+      setPermissions(next);
+      setSystemAccess(deriveSystemAccess(next));
     }
   };
 
@@ -270,8 +278,7 @@ export function UserFormModal({
               onChange={(e) => handleRoleChange(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl text-slate-800 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-100/60 focus:border-indigo-400 transition-all shadow-2xs cursor-pointer font-semibold"
             >
-              <option value={USER_ROLES.USER}>User</option>
-              <option value={USER_ROLES.ADMIN}>Admin</option>
+              {ROLE_OPTIONS.map(role => <option key={role} value={role}>{role}</option>)}
             </select>
           </div>
 

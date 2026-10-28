@@ -34,7 +34,7 @@ export function UserDetailsModal({
   if (!user) return null;
 
   const isActive = user.status === USER_STATUS.ACTIVE;
-  const isAdmin = user.role === USER_ROLES.ADMIN && !user.technicalOnly;
+  const isAdmin = user.role === USER_ROLES.ADMIN;
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();

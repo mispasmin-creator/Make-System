@@ -76,7 +76,7 @@ export function transitionIssue(issue, action, data, actor, now = new Date().toI
     if (issue.approval?.actual) throw new Error('Assessment already submitted. Refresh the record.');
     if (!['Yes', 'No'].includes(data.repairRequired)) throw new Error('Choose Yes or No.');
     if (!data.whereToSolve?.trim()) throw new Error('Where Have To Solve is required.');
-    updated.assessment = { repairRequired: data.repairRequired, whereToSolve: data.whereToSolve.trim() };
+    updated.assessment = { repairRequired: data.repairRequired, whereToSolve: data.whereToSolve.trim(), assignedDeveloper: data.assignedDeveloper?.trim() || '' };
     updated.approval = { ...issue.approval, actual: now };
     if (data.repairRequired === 'Yes') updated.repair = { ...issue.repair, planned: issue.repair?.planned || addRepairWorkingDays(now, 3) };
     stageKey = 'SRIF-1';

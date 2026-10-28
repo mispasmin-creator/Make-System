@@ -12,6 +12,7 @@
 import { isGoogleSheetsConnected } from '../config/integrationConfig';
 import { callGoogleAppsScript } from './dataService';
 import { SYSTEMS, normalizeAccess, hasStageAccess } from '../utils/accessPolicy.mjs';
+import { applyBulkAccess } from '../utils/accessPresets.mjs';
 export { SYSTEMS };
 
 const STORAGE_KEY_USERS = 'make_system_users_v2';
@@ -34,7 +35,9 @@ export const APP_STAGES = [
 
 export const USER_ROLES = {
   ADMIN: 'Admin',
-  USER: 'User'
+  USER: 'User',
+  EA: 'EA',
+  DME: 'DME'
 };
 
 export const USER_STATUS = {
@@ -192,14 +195,6 @@ export function getAuditLogs() {
   }
 }
 
-export function isTechnicalOnlyUser(user) {
-  if (!user) return false;
-  if (user.token || typeof user.technicalOnly === 'boolean') return Boolean(user.technicalOnly);
-  if (user.technicalOnly || String(user.password || '').startsWith('PMMPL')) return true;
-  const saved = loadLocalUsers().find(item => item.username === user.username);
-  return Boolean(saved?.technicalOnly || String(saved?.password || '').startsWith('PMMPL'));
-}
-
 export const authService = {
   /**
    * Get currently active session user
@@ -277,8 +272,7 @@ export const authService = {
       permissions: normalizeAccess(user).permissions,
       systemAccess: normalizeAccess(user).systemAccess,
       status: user.status,
-      loginAt: nowISO,
-      technicalOnly: String(user.password || '').startsWith('PMMPL')
+      loginAt: nowISO
     };
 
     if (rememberMe) {
@@ -308,7 +302,7 @@ export const authService = {
    * Check if a user has permission for a specific stage and action
    */
   canAccessStage(user, stageId, action = 'view') {
-    return hasStageAccess({ ...user, technicalOnly: isTechnicalOnlyUser(user) }, stageId, action);
+    return hasStageAccess(user, stageId, action);
   },
 
   async refreshSession() {
@@ -325,7 +319,7 @@ export const authService = {
    * Check if user is an Administrator
    */
   isAdmin(user) {
-    return Boolean(user && !isTechnicalOnlyUser(user) && user.role === USER_ROLES.ADMIN && user.status === USER_STATUS.ACTIVE);
+    return Boolean(user && user.role === USER_ROLES.ADMIN && user.status === USER_STATUS.ACTIVE);
   },
 
   /**
@@ -496,6 +490,29 @@ export const authService = {
 
 
     return updatedUser;
+  },
+
+  /**
+   * Bulk access: apply one access change (and optionally a role) to many users with a single sheet save.
+   * change = { role?, mode: 'add' | 'replace' | 'remove', stages: { [stageId]: { view, update } } }
+   */
+  async bulkUpdateAccess(userIds, change, actor = 'System Administrator') {
+    if (!this.isAdmin(this.getCurrentUser())) throw new Error('Only Admin can manage users.');
+    const ids = new Set(userIds);
+    // Start from the live sheet so a stale local cache never overwrites newer edits.
+    const users = isGoogleSheetsConnected() ? await this.listUsers(true) : loadLocalUsers();
+    let changed = 0;
+    const updated = users.map(user => {
+      if (!ids.has(user.id)) return user;
+      const result = applyBulkAccess(user, change);
+      if (!result) return user;
+      changed++;
+      return { ...user, ...result, lastUpdatedAt: new Date().toISOString() };
+    });
+    if (isGoogleSheetsConnected()) await callGoogleAppsScript('saveUsers', { users: updated });
+    saveLocalUsers(updated);
+    logAuditEvent('Bulk Access Updated', `Updated access for ${changed} user(s) (${change.mode}${change.role ? `, role ${change.role}` : ''})`, actor);
+    return { changed, skipped: ids.size - changed };
   },
 
   /**

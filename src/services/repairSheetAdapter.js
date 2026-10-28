@@ -1,10 +1,11 @@
 import { callGoogleAppsScript } from './dataService';
 import { isGoogleSheetsConnected } from '../config/integrationConfig';
+import { sortNewestFirst } from '../utils/sortUtils';
 
 async function listIssues() {
   const result = await callGoogleAppsScript('getRepairIssues', {}, 'GET');
   if (!Array.isArray(result.issues)) throw new Error('Repair API unavailable. Deploy the updated Apps Script first.');
-  return result.issues;
+  return sortNewestFirst(result.issues, 'createdAt', 'serial');
 }
 async function write(action, payload) {
   const result = await callGoogleAppsScript(action, payload);

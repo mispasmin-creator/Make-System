@@ -140,6 +140,9 @@ export function CreateSystemPage({
                   Request No.
                 </th>
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                  Requester
+                </th>
+                <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                   Company
                 </th>
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
@@ -172,7 +175,7 @@ export function CreateSystemPage({
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
               {paginatedList.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-slate-400">
+                  <td colSpan={12} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <Code2 className="w-8 h-8 text-slate-300" />
                       <span className="font-semibold text-slate-700">
@@ -231,6 +234,10 @@ export function CreateSystemPage({
                       <td className="px-3.5 py-2.5 font-mono font-bold text-indigo-600 whitespace-nowrap">
                         {req.requestNo}
                       </td>
+
+                    <td className="px-3.5 py-2.5 font-medium text-slate-700 whitespace-nowrap">
+                      {req.requester || req.createdBy || '—'}
+                    </td>
 
                       <td className="px-3.5 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
                         {req.companyName}

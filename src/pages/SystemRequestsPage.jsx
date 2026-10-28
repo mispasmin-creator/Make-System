@@ -35,7 +35,7 @@ export function SystemRequestsPage({
     return requests.filter((req) => {
       if (searchTerm) {
         const query = searchTerm.toLowerCase();
-        const matchNo = req.requestNo?.toLowerCase().includes(query);
+        const matchNo = req.requestNo?.toLowerCase().includes(query) || (req.requester || req.createdBy || '').toLowerCase().includes(query);
         const matchRev = req.currentRevisionNo?.toLowerCase().includes(query);
         const matchComp = req.companyName?.toLowerCase().includes(query);
         const matchDev = req.assignedDeveloper?.toLowerCase().includes(query);
@@ -203,6 +203,9 @@ export function SystemRequestsPage({
                   Request No.
                 </th>
                 <th className="px-3.5 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                  Requester
+                </th>
+                <th className="px-3.5 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
                   Company
                 </th>
                 <th className="px-3.5 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
@@ -227,7 +230,7 @@ export function SystemRequestsPage({
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
               {paginatedRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <ClipboardList className="w-8 h-8 text-slate-300" />
                       <span className="font-semibold text-slate-700">No system requests found</span>
@@ -260,6 +263,10 @@ export function SystemRequestsPage({
                       <td className="px-3.5 py-2.5 font-mono font-bold text-indigo-600 whitespace-nowrap">
                         {req.requestNo}
                       </td>
+
+                    <td className="px-3.5 py-2.5 font-medium text-slate-700 whitespace-nowrap">
+                      {req.requester || req.createdBy || '—'}
+                    </td>
 
                       <td className="px-3.5 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
                         {req.companyName}
