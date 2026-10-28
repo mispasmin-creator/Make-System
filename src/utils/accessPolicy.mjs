@@ -1,5 +1,5 @@
 export const SYSTEMS = [
-  { id: 'make', label: 'Make System', stages: ['requests', 'introduce', 'create', 'revise', 'testing', 'mis'] },
+  { id: 'make', label: 'Make System', stages: ['requests', 'introduce', 'create', 'mis'] },
   { id: 'technical', label: 'Technical Help', stages: ['technical-new', 'technical-all'] },
   { id: 'repair', label: 'Repair System', stages: ['repair-new', 'repair-approval', 'repair-work'] }
 ];

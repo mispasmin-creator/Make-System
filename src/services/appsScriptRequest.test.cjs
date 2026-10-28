@@ -7,6 +7,7 @@ const end = source.indexOf('\n/**', start);
 let delay, timeout, cleared = 0, abort = false;
 const context = {
   getGoogleAppsScriptUrl: () => 'https://example.invalid/exec',
+  normalizeApiRequests: payload => payload,
   AbortController, URLSearchParams, console,
   setTimeout: (fn, ms) => { timeout = fn; delay = ms; return 1; },
   clearTimeout: () => { cleared++; },

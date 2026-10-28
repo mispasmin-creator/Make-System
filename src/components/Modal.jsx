@@ -47,6 +47,7 @@ export function Modal({
     >
       <div
         ref={modalRef}
+        data-cursor-float
         className={`bg-white rounded-2xl shadow-[0_24px_50px_-10px_rgba(15,23,42,0.18)] border border-slate-100 w-full flex flex-col overflow-hidden max-h-[88vh] ${
           large ? 'max-w-3xl' : 'max-w-xl'
         }`}

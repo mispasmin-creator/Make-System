@@ -1,28 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Check, AlertCircle } from 'lucide-react';
+import { Check, AlertCircle } from 'lucide-react';
 import { Modal } from './Modal';
 import { formatToKolkataDateString } from '../utils/dateUtils';
+import { SearchableSelect } from './SearchableSelect';
 
-export function IntroduceActionModal({ isOpen, onClose, request, onSubmit }) {
-  const [meetingDate, setMeetingDate] = useState('');
+export function IntroduceActionModal({ isOpen, onClose, request, onSubmit, developerOptions = [] }) {
+  const [assignedDeveloper, setAssignedDeveloper] = useState('');
+  const [targetCompletionDate, setTargetCompletionDate] = useState('');
   const [remarks, setRemarks] = useState('');
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      setMeetingDate(formatToKolkataDateString(new Date()));
+    if (isOpen && request) {
+      setAssignedDeveloper(request.assignedDeveloper || '');
+      setTargetCompletionDate(request.targetCompletionDate || '');
       setRemarks('');
       setErrors({});
       setIsSubmitting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, request]);
 
   if (!request) return null;
 
   function validate() {
     const errs = {};
-    if (!meetingDate) errs.meetingDate = 'Meeting Date is required';
+    if (!assignedDeveloper) errs.assignedDeveloper = 'Developer assignment is required';
+    if (!targetCompletionDate) errs.targetCompletionDate = 'Target completion date is required';
     if (!remarks.trim()) errs.remarks = 'Discussion / Follow-up Remarks are required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -35,7 +39,8 @@ export function IntroduceActionModal({ isOpen, onClose, request, onSubmit }) {
     setIsSubmitting(true);
     try {
       await onSubmit(request.id, {
-        meetingDate,
+        assignedDeveloper,
+        targetCompletionDate,
         remarks: remarks.trim()
       });
       onClose();
@@ -90,7 +95,6 @@ export function IntroduceActionModal({ isOpen, onClose, request, onSubmit }) {
             <strong className="text-slate-900">Request:</strong>{' '}
             <span className="font-mono text-indigo-600 font-bold">{request.requestNo}</span> ({request.companyName})
           </div>
-          <div><strong className="text-slate-900">Developer:</strong> {request.assignedDeveloper}</div>
           <div className="text-slate-700 truncate font-medium"><strong className="text-slate-900">System Name:</strong> {request.systemName || request.systemRequirements}</div>
         </div>
 
@@ -101,21 +105,17 @@ export function IntroduceActionModal({ isOpen, onClose, request, onSubmit }) {
           </div>
         )}
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5" htmlFor="meetingDate">
-            Meeting Date <span className="text-rose-500">*</span>
-          </label>
-          <input
-            id="meetingDate"
-            type="date"
-            className="w-full px-3.5 py-2.5 bg-white border border-slate-200/80 rounded-xl text-slate-800 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-100/60 focus:border-indigo-400 shadow-2xs transition-all cursor-pointer"
-            value={meetingDate}
-            onChange={(e) => {
-              setMeetingDate(e.target.value);
-              if (errors.meetingDate) setErrors(prev => ({ ...prev, meetingDate: '' }));
-            }}
-          />
-          {errors.meetingDate && <span className="text-[11px] text-rose-600 font-semibold mt-1 block">{errors.meetingDate}</span>}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Assigned Developer <span className="text-rose-500">*</span></label>
+            <SearchableSelect value={assignedDeveloper} options={developerOptions} isInvalid={Boolean(errors.assignedDeveloper)} onChange={setAssignedDeveloper} />
+            {errors.assignedDeveloper && <span className="text-[11px] text-rose-600 font-semibold mt-1 block">{errors.assignedDeveloper}</span>}
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5" htmlFor="targetCompletionDate">Target Completion Date <span className="text-rose-500">*</span></label>
+            <input id="targetCompletionDate" type="date" min={formatToKolkataDateString(new Date())} value={targetCompletionDate} onChange={e => setTargetCompletionDate(e.target.value)} className="w-full px-3.5 py-2.5 bg-white border border-slate-200/80 rounded-xl text-slate-800 text-sm" />
+            {errors.targetCompletionDate && <span className="text-[11px] text-rose-600 font-semibold mt-1 block">{errors.targetCompletionDate}</span>}
+          </div>
         </div>
 
         <div>

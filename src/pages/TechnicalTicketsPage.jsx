@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Search } from 'lucide-react';
 import { getCachedTechnicalTickets, subscribeTechnicalTickets, listTechnicalTickets, submitTechnicalTicket } from '../services/technicalHelpService';
 import { Modal } from '../components/Modal';
 
@@ -73,7 +74,16 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
 
   const rows = tickets.filter(t => JSON.stringify(t).toLowerCase().includes(q.toLowerCase()));
   return <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-bold text-slate-800">All Technical Tickets</h1><p className="text-sm text-slate-500">View tickets and submit completed work.</p></div><input aria-label="Search tickets" value={q} onChange={e => setQ(e.target.value)} placeholder="Search tickets..." className="rounded-lg border border-slate-200 px-3 py-2 text-sm" /></div>
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div><h1 className="text-xl font-bold text-slate-800">All Technical Tickets</h1><p className="text-sm text-slate-500">View tickets and submit completed work.</p></div>
+      <label className="block w-full sm:w-64">
+        <span className="mb-1.5 block text-xs font-semibold text-indigo-800">Search tickets</span>
+        <div className="relative">
+          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-600" />
+          <input aria-label="Search tickets" value={q} onChange={e => setQ(e.target.value)} className="w-full rounded-xl border border-indigo-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 shadow-[0_4px_12px_rgba(25,81,220,0.14),0_1px_3px_rgba(25,81,220,0.10)] transition-[border-color,box-shadow] hover:border-indigo-400 hover:shadow-[0_6px_16px_rgba(25,81,220,0.20)] focus:border-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-100" />
+        </div>
+      </label>
+    </div>
     {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {message && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
     <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Ticket', 'Requester', 'Company', 'Application', 'Problem', 'Assigned To', 'Status', 'Created', 'Actual', 'Action'].map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>

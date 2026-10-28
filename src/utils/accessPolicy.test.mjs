@@ -15,5 +15,5 @@ assert.equal(hasStageAccess(restricted,'technical-all','update'),false);
 assert.equal(hasStageAccess(restricted,'admin'),false);
 assert.equal(hasStageAccess({...user,status:'Inactive'},'repair-problem'),false);
 assert.equal(hasStageAccess({role:'Admin',status:'Active'},'admin'),true);
-assert.equal(normalizeAccess({role:'User',permissions:{testing:{view:true,edit:true}}}).permissions.testing.update,false);
+assert.equal(normalizeAccess({role:'User',permissions:{create:{view:true,edit:true}}}).permissions.create.update,false);
 console.log('PASS: three-system isolation, aliases, View/Update separation, admin-only edit, inactive users, legacy migration and PMMPL restriction.');

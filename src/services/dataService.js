@@ -17,6 +17,7 @@ import {
   SAMPLE_DEVELOPERS
 } from '../constants/stages';
 import { getNowKolkataISO, formatToKolkataDateString } from '../utils/dateUtils';
+import { normalizeSystemRequest as normalizeLegacyStage } from '../utils/systemWorkflow.mjs';
 import {
   isGoogleSheetsConnected,
   getGoogleAppsScriptUrl,
@@ -635,19 +636,25 @@ export function getNextRequestNumber(requestsList) {
   return formatRequestNumber(maxNum + 1);
 }
 
+function normalizeApiRequests(payload) {
+  if (Array.isArray(payload.requests)) payload.requests = payload.requests.map(normalizeLegacyStage);
+  if (payload.request) payload.request = normalizeLegacyStage(payload.request);
+  return payload;
+}
+
 function loadStoredRequests() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_REQUESTS);
     if (!raw) {
-      const initial = getInitialSampleData();
+      const initial = getInitialSampleData().map(normalizeLegacyStage);
       saveStoredRequests(initial);
       localStorage.setItem(STORAGE_KEY_SEQUENCE, '7');
       return initial;
     }
-    return JSON.parse(raw);
+    return JSON.parse(raw).map(normalizeLegacyStage);
   } catch (err) {
     console.error('Failed to load stored requests:', err);
-    return getInitialSampleData();
+    return getInitialSampleData().map(normalizeLegacyStage);
   }
 }
 
@@ -704,7 +711,7 @@ export async function callGoogleAppsScript(action, payload = {}, method = 'POST'
       if (!res.ok) throw new Error(`Google Apps Script responded with HTTP ${res.status}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      return data;
+      return normalizeApiRequests(data);
     }
 
     // POST using text/plain to avoid CORS preflight options
@@ -723,7 +730,7 @@ export async function callGoogleAppsScript(action, payload = {}, method = 'POST'
     if (!res.ok) throw new Error(`Google Apps Script responded with HTTP ${res.status}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    return data;
+    return normalizeApiRequests(data);
   } catch (err) {
     if (controller.signal.aborted || err?.name === 'AbortError' || err?.name === 'TimeoutError') {
       throw new Error(method === 'GET'
@@ -818,18 +825,22 @@ export const dataService = {
       try {
         const sync = await this.checkSync();
         if (sync.hasChanges && sync.requests) {
+          const masterOptions = sync.masterOptions?.developers?.length
+            ? sync.masterOptions
+            : await this.getMasterOptions();
           return {
             requests: sync.requests,
-            masterOptions: sync.masterOptions || loadCachedMasterOptions(),
+            masterOptions,
             users: sync.users || [],
             nextRequestNo: getNextRequestNumber(sync.requests)
           };
         }
 
         const cached = loadStoredRequests();
+        const masterOptions = await this.getMasterOptions();
         return {
           requests: cached,
-          masterOptions: loadCachedMasterOptions(),
+          masterOptions,
           users: [],
           nextRequestNo: getNextRequestNumber(cached)
         };
@@ -857,8 +868,8 @@ export const dataService = {
         const res = await callGoogleAppsScript('getMasterOptions', {}, 'GET');
         if (res && (res.companies || res.developers)) {
           const opts = {
-            companies: res.companies || cached.companies || SAMPLE_COMPANIES,
-            developers: res.developers || cached.developers || SAMPLE_DEVELOPERS,
+            companies: Array.isArray(res.companies) && res.companies.length ? res.companies : (cached.companies?.length ? cached.companies : SAMPLE_COMPANIES),
+            developers: Array.isArray(res.developers) && res.developers.length ? res.developers : (cached.developers?.length ? cached.developers : SAMPLE_DEVELOPERS),
             isLiveGoogleSheets: true
           };
           saveCachedMasterOptions(opts);
@@ -1084,12 +1095,13 @@ export const dataService = {
   /**
    * Introduce System - Approve & Submit
    */
-  async approveIntroduction(requestId, { meetingDate, remarks }) {
+  async approveIntroduction(requestId, { assignedDeveloper, targetCompletionDate, remarks }) {
     if (isGoogleSheetsConnected()) {
       const res = await callGoogleAppsScript('approveIntroduction', {
         requestId,
         data: {
-          meetingDate,
+          assignedDeveloper,
+          targetCompletionDate,
           remarks,
           approvedBy: CURRENT_USER.name
         }
@@ -1103,9 +1115,10 @@ export const dataService = {
         workStatus: WORK_STATUS.IN_PROGRESS,
         progressPercent: 0,
         latestRemarks: remarks,
+        assignedDeveloper,
+        targetCompletionDate,
         introduction: {
           isCompleted: true,
-          meetingDate,
           remarks,
           completedAt: new Date().toISOString(),
           completedBy: CURRENT_USER.name
@@ -1125,11 +1138,12 @@ export const dataService = {
     const nowISO = getNowKolkataISO();
     req.introduction = {
       isCompleted: true,
-      meetingDate,
       remarks,
       completedAt: nowISO,
       completedBy: CURRENT_USER.name
     };
+    req.assignedDeveloper = assignedDeveloper;
+    req.targetCompletionDate = targetCompletionDate;
 
     req.currentStage = STAGES.CREATE;
     req.currentStatus = 'Create System: Pending';
@@ -1143,7 +1157,7 @@ export const dataService = {
       revisionNo: null,
       status: WORK_STATUS.IN_PROGRESS,
       progressPercent: 0,
-      remarks: `Introduction approved. Meeting on ${meetingDate}: ${remarks}`,
+      remarks: `Introduction approved. ${remarks}`,
       updatedAt: nowISO,
       updatedBy: CURRENT_USER.name
     });
@@ -1153,7 +1167,7 @@ export const dataService = {
       action: 'Introduction Approved',
       actor: CURRENT_USER.name,
       timestamp: nowISO,
-      details: `Meeting held on ${meetingDate}. Remarks: "${remarks}". Moved to Create System: Pending.`
+      details: `Introduction approved. Remarks: "${remarks}". Moved to Create System: Pending.`
     });
 
     saveStoredRequests(requests);
@@ -1213,7 +1227,7 @@ export const dataService = {
       req.workStatus = WORK_STATUS.IN_PROGRESS;
       req.progressPercent = finalProgress;
       req.latestRemarks = remarks;
-      req.currentStage = req.currentRevisionNo ? STAGES.REVISE : STAGES.CREATE;
+      req.currentStage = STAGES.CREATE;
       req.currentStatus = req.currentRevisionNo 
         ? `Revise System (${finalProgress}%)` 
         : `Development: In Progress (${finalProgress}%)`;
@@ -1233,7 +1247,7 @@ export const dataService = {
       req.workStatus = WORK_STATUS.ON_HOLD;
       req.holdReason = holdReason;
       req.latestRemarks = holdReason;
-      req.currentStage = req.currentRevisionNo ? STAGES.REVISE : STAGES.CREATE;
+      req.currentStage = STAGES.CREATE;
       req.currentStatus = req.currentRevisionNo ? 'Revise: On Hold' : 'Development: On Hold';
 
       let dateChangeNote = '';
@@ -1272,11 +1286,11 @@ export const dataService = {
         activityAction = 'Revision Completed';
         activityDetails = `Revision ${req.currentRevisionNo} completed (100%).${linkNote} Sent to Update MIS System.`;
       } else {
-        req.currentStage = STAGES.TESTING;
-        req.currentStatus = 'Testing: Pending';
-        req.latestRemarks = remarks || 'Development cycle completed. Sent to Testing System.';
+        req.currentStage = STAGES.UPDATE_MIS;
+        req.currentStatus = 'Update MIS: Pending';
+        req.latestRemarks = remarks || 'Development completed. Sent to Update MIS System.';
         activityAction = 'Development Completed';
-        activityDetails = `Cycle ${currentCycle} completed (100%).${linkNote} Sent to Testing System.`;
+        activityDetails = `Cycle ${currentCycle} completed (100%).${linkNote} Sent to Update MIS System.`;
       }
 
       req.developmentHistory.push({

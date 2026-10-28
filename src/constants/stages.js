@@ -68,7 +68,5 @@ export const NAV_ITEMS = [
   { id: 'technical-all', label: 'All Technical Tickets', icon: 'clipboard-list' },
   { id: 'introduce', label: 'Introduce System', icon: 'handshake' },
   { id: 'create', label: 'Create System', icon: 'code' },
-  { id: 'revise', label: 'Revise System', icon: 'refresh-cw' },
-  { id: 'testing', label: 'Testing System', icon: 'check-circle' },
   { id: 'mis', label: 'Update MIS System', icon: 'database' }
 ];

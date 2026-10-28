@@ -4,8 +4,8 @@ import { StatusBadge } from '../components/StatusBadge';
 import { Pagination } from '../components/Pagination';
 import { ImageAttachmentCell } from '../components/ImageAttachmentCell';
 import { formatDisplayDateTime } from '../utils/dateUtils';
-import { STAGES } from '../constants/stages';
 import { MisActionModal } from '../components/MisActionModal';
+import { isMisPending, isSystemClosed } from '../utils/systemWorkflow.mjs';
 
 export function UpdateMisSystemPage({
   requests = [],
@@ -21,11 +21,11 @@ export function UpdateMisSystemPage({
   const [pageSize, setPageSize] = useState(10);
 
   const pendingRequests = useMemo(() => {
-    return requests.filter(r => r.currentStage === STAGES.UPDATE_MIS);
+    return requests.filter(isMisPending);
   }, [requests]);
 
   const completedRequests = useMemo(() => {
-    return requests.filter(r => r.currentStage === STAGES.CLOSED || r.misUpdate?.isCompleted);
+    return requests.filter(isSystemClosed);
   }, [requests]);
 
   const activeList = activeTab === 'pending' ? pendingRequests : completedRequests;
@@ -112,7 +112,7 @@ export function UpdateMisSystemPage({
                 {activeTab === 'pending' ? (
                   <>
                     <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Testing Approved At
+                      Development Completed At
                     </th>
                     <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                       MIS Status
@@ -145,7 +145,7 @@ export function UpdateMisSystemPage({
                       </span>
                       <span className="text-[11px]">
                         {activeTab === 'pending'
-                          ? 'Requests appear here as soon as QA marks testing Approved.'
+                          ? 'Requests appear here when development is marked Completed in Create System.'
                           : 'Requests with submitted MIS details will be archived here.'}
                       </span>
                     </div>
@@ -210,7 +210,7 @@ export function UpdateMisSystemPage({
                     {activeTab === 'pending' ? (
                       <>
                         <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-600">
-                          {formatDisplayDateTime(req.testingApprovedAt || req.lastUpdatedAt)}
+                          {formatDisplayDateTime(req.developmentCompletedAt || req.lastUpdatedAt)}
                         </td>
                         <td className="px-3.5 py-2.5 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">

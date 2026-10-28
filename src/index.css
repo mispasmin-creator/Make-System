@@ -1,8 +1,54 @@
 @import "tailwindcss";
 
+/* One palette updates navigation, actions, tabs and form focus states together. */
+@theme {
+  --font-sans: Calibri, Carlito, Aptos, 'Segoe UI', sans-serif;
+  --color-indigo-50: #f3f7ff;
+  --color-indigo-100: #e7efff;
+  --color-indigo-200: #dbe9fd;
+  --color-indigo-300: #aecbfc;
+  --color-indigo-400: #73a9fb;
+  --color-indigo-500: #3269e5;
+  --color-indigo-600: #1951dc;
+  --color-indigo-700: #0b2cb1;
+  --color-indigo-800: #061f72;
+  --color-indigo-900: #03195b;
+  --color-indigo-950: #020d30;
+  --color-blue-50: #f3f7ff;
+  --color-blue-100: #e7efff;
+  --color-blue-200: #dbe9fd;
+  --color-blue-300: #aecbfc;
+  --color-blue-400: #73a9fb;
+  --color-blue-500: #3269e5;
+  --color-blue-600: #1951dc;
+  --color-blue-700: #0b2cb1;
+  --color-blue-800: #061f72;
+  --color-blue-900: #03195b;
+  --color-violet-50: #f3f7ff;
+  --color-violet-100: #e7efff;
+  --color-violet-500: #3269e5;
+  --color-violet-600: #1951dc;
+  --color-violet-700: #0b2cb1;
+  --color-purple-50: #f3f7ff;
+  --color-purple-100: #e7efff;
+  --color-purple-500: #3269e5;
+  --color-purple-600: #1951dc;
+  --color-purple-700: #0b2cb1;
+  --color-slate-50: #f8faff;
+  --color-slate-100: #eef2fa;
+  --color-slate-200: #dfe6f2;
+  --color-slate-300: #c7d2e5;
+  --color-slate-400: #8b9bb7;
+  --color-slate-500: #61728f;
+  --color-slate-600: #475b7b;
+  --color-slate-700: #314566;
+  --color-slate-800: #182d50;
+  --color-slate-900: #061f72;
+}
+
 @layer base {
   :root {
-    --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    --font-sans: Calibri, Carlito, Aptos, 'Segoe UI', sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     
     /* Floating Soft UI Shadow Tokens */
@@ -15,8 +61,8 @@
 
   body {
     font-family: var(--font-sans);
-    background-color: #f6f8fb; /* Clean off-white floating canvas */
-    color: #0f172a; /* slate-900 */
+    background-color: #f2f5fc;
+    color: #061f72;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
@@ -41,10 +87,17 @@
   }
 }
 
+/* Keep form fields visually blank until the user enters a value. */
+input::placeholder,
+textarea::placeholder {
+  color: transparent;
+  opacity: 0;
+}
+
 /* Floating Soft UI Utility Classes */
 .soft-card {
   background: #ffffff;
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  border: 1px solid rgba(115, 169, 251, 0.4);
   border-radius: 1rem;
   box-shadow: var(--shadow-soft-md);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -70,42 +123,26 @@
 }
 .soft-input:focus {
   background: #ffffff;
-  border-color: #6366f1;
+  border-color: #3269e5;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  box-shadow: 0 0 0 3px rgba(115, 169, 251, 0.2);
 }
 
 .soft-btn-primary {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  background: linear-gradient(135deg, #1951dc 0%, #0b2cb1 100%);
   color: #ffffff;
   border-radius: 0.75rem;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+  box-shadow: 0 3px 10px rgba(25, 81, 220, 0.22);
   transition: all 0.15s ease-in-out;
 }
 .soft-btn-primary:hover {
-  background: linear-gradient(135deg, #4338ca 0%, #3730a3 100%);
+  background: linear-gradient(135deg, #0b2cb1 0%, #061f72 100%);
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 6px 18px rgba(25, 81, 220, 0.28);
 }
 .soft-btn-primary:active {
   transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.2);
-}
-
-/* Floating Levitation & Interactive Cursor Float Animations */
-@keyframes continuousFloating {
-  0% {
-    transform: perspective(1200px) translateY(-10px) scale(1.008);
-    box-shadow: 0 32px 80px -15px rgba(0, 102, 255, 0.26), 0 16px 36px -10px rgba(15, 23, 42, 0.1);
-  }
-  50% {
-    transform: perspective(1200px) translateY(-20px) scale(1.015);
-    box-shadow: 0 48px 105px -15px rgba(0, 102, 255, 0.38), 0 24px 50px -10px rgba(15, 23, 42, 0.14);
-  }
-  100% {
-    transform: perspective(1200px) translateY(-10px) scale(1.008);
-    box-shadow: 0 32px 80px -15px rgba(0, 102, 255, 0.26), 0 16px 36px -10px rgba(15, 23, 42, 0.1);
-  }
+  box-shadow: 0 2px 6px rgba(25, 81, 220, 0.2);
 }
 
 @keyframes gentleLogoFloat {
@@ -117,36 +154,155 @@
   }
 }
 
-.animate-card-floating {
-  animation: continuousFloating 3.6s ease-in-out infinite;
-  will-change: transform, box-shadow;
-}
-
 .animate-logo-float {
   animation: gentleLogoFloat 4s ease-in-out infinite;
 }
 
-/* Data Table Floating on Cursor Enter */
-.floating-table-card,
-.bg-white.rounded-2xl.border.border-slate-200\/70 {
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+/* Midnight navy, royal-blue accents and icy white surfaces. */
+[class~="bg-[#f6f8fb]"],
+[class~="bg-[#f7f9fc]"] {
+  background-color: #f2f5fc;
+  background-image: radial-gradient(ellipse at 95% 0%, #e1eaff 0%, transparent 52%);
 }
 
-.floating-table-card:hover,
-.bg-white.rounded-2xl.border.border-slate-200\/70:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 48px -10px rgba(15, 23, 42, 0.09), 0 8px 20px -4px rgba(0, 102, 255, 0.08);
+main .bg-white.rounded-2xl.border,
+.soft-card {
+  border-color: #e0e7f5;
+  box-shadow: 0 7px 26px -12px rgb(3 25 91 / 18%), 0 1px 2px rgb(3 25 91 / 4%);
 }
 
-/* Floating table row on cursor hover */
+thead {
+  background-color: #f3f6fd;
+}
+
 table tbody tr {
-  transition: background-color 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
+  transition: background-color 160ms ease;
 }
 
 table tbody tr:hover {
-  background-color: #f8faff !important;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px -2px rgba(0, 102, 255, 0.12), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
-  position: relative;
-  z-index: 10;
+  background-color: #eef4ff;
+}
+
+/* Floating depth follows the pointer without changing geometry or scrolling. */
+.cursor-float-surface,
+.cursor-float-surface:hover {
+  transform: none;
+  translate: none;
+  rotate: none;
+  scale: none;
+  transition: box-shadow 180ms ease-out, border-color 180ms ease-out;
+}
+
+.cursor-float-surface[data-cursor-floating="true"] {
+  background-image: radial-gradient(420px circle at var(--light-x, 50%) var(--light-y, 50%), rgb(115 169 251 / 13%), transparent 75%);
+  border-color: #b9ccf3;
+  box-shadow: var(--float-shadow-x, 0px) var(--float-shadow-y, 15px) 38px -16px rgb(3 25 91 / 22%), 0 3px 12px -5px rgb(3 25 91 / 10%);
+}
+
+.login-floating-card {
+  box-shadow: 0 25px 60px -15px rgb(3 25 91 / 20%), 0 0 1px rgb(3 25 91 / 10%);
+}
+
+/* Match the workspace: icy white navigation with a clear royal-blue selection. */
+.premium-sidebar {
+  background-color: #f8faff;
+  background-image: linear-gradient(180deg, #ffffff 0%, #f2f6ff 100%);
+  border-color: #dce5f7;
+  box-shadow: 5px 0 24px -14px rgb(25 81 220 / 18%);
+}
+
+.premium-sidebar-brand,
+.premium-sidebar-footer,
+.premium-sidebar nav [class~="border-t"] {
+  border-color: #e0e8f7;
+}
+
+.premium-sidebar-brand span,
+.premium-sidebar-footer .text-slate-800 {
+  color: #182d50;
+}
+
+.premium-sidebar-footer {
+  background: #edf3ff;
+}
+
+.premium-sidebar-footer .text-slate-400,
+.premium-sidebar-footer button {
+  color: #61728f;
+}
+
+.premium-sidebar nav > .text-slate-400,
+.premium-sidebar nav .text-indigo-400 {
+  color: #61728f;
+  letter-spacing: 0.12em;
+}
+
+.premium-sidebar nav button {
+  color: #314566;
+  background: rgb(255 255 255 / 72%);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.premium-sidebar nav button svg {
+  color: #7289b1;
+}
+
+.premium-sidebar nav button:hover {
+  color: #1951dc;
+  background: #eaf1ff;
+  border-color: #d0dfff;
+}
+
+.premium-sidebar nav button[aria-current="page"] {
+  color: #ffffff;
+  background: linear-gradient(115deg, #1951dc 0%, #0b2cb1 100%);
+  border-color: #3769e9;
+  box-shadow: inset 3px 0 0 #aecbfc, inset 0 1px 0 rgb(219 233 253 / 22%), 0 5px 14px -6px rgb(25 81 220 / 36%);
+}
+
+.premium-sidebar nav button[aria-current="page"] svg {
+  color: #dbe9fd;
+}
+
+.premium-sidebar nav button > span:not(.truncate) {
+  color: #314566;
+  background: #e4ecfb;
+}
+
+.premium-sidebar nav button[aria-current="page"] > span:not(.truncate) {
+  color: #ffffff;
+  background: rgb(219 233 253 / 18%);
+}
+
+.premium-sidebar button:focus-visible {
+  outline-color: #1951dc;
+}
+
+.soft-btn-primary,
+button.bg-indigo-600:not(:disabled) {
+  background-image: linear-gradient(135deg, #1951dc 0%, #0b2cb1 100%);
+  box-shadow: inset 0 1px 0 rgb(219 233 253 / 24%), 0 4px 12px -4px rgb(25 81 220 / 28%);
+}
+
+.soft-btn-primary:hover,
+button.bg-indigo-600:not(:disabled):hover {
+  background-image: linear-gradient(135deg, #1748cb 0%, #03195b 100%);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #1951dc;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  .cursor-float-surface,
+  .soft-card-hover:hover {
+    transform: none;
+    transition: none;
+  }
+  .animate-logo-float {
+    animation: none;
+  }
 }

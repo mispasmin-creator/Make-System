@@ -2,8 +2,6 @@ import {
   ClipboardList,
   Handshake,
   Code2,
-  RefreshCw,
-  CheckCircle2,
   Database,
   ShieldCheck,
   LogOut,
@@ -20,8 +18,6 @@ const ICON_MAP = {
   requests: ClipboardList,
   introduce: Handshake,
   create: Code2,
-  revise: RefreshCw,
-  testing: CheckCircle2,
   mis: Database,
   admin: ShieldCheck,
   'repair-system': Wrench
@@ -58,13 +54,13 @@ export function Sidebar({
       )}
 
       <aside
-        className={`fixed lg:static top-0 bottom-0 left-0 z-40 bg-white border-r border-slate-100/90 shadow-[1px_0_12px_rgba(15,23,42,0.02)] flex flex-col select-none ${
+        className={`premium-sidebar fixed lg:static top-0 bottom-0 left-0 z-40 bg-white border-r border-slate-100/90 shadow-[1px_0_12px_rgba(15,23,42,0.02)] flex flex-col select-none ${
           isCollapsed ? 'w-16' : 'w-64'
         } ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
         aria-label="Main sidebar navigation"
       >
         {/* Top Logo / Brand area */}
-        <div className="h-16 flex items-center px-4 border-b border-slate-100/80 gap-3 shrink-0">
+        <div className="premium-sidebar-brand h-16 flex items-center px-4 border-b border-slate-100/80 gap-3 shrink-0">
           <div className="w-9 h-9 rounded-xl bg-white border border-slate-200/90 flex items-center justify-center shadow-xs overflow-hidden shrink-0 p-1">
             <img src="/logo.png" alt="Make System Logo" className="w-full h-full object-contain" />
           </div>
@@ -77,7 +73,7 @@ export function Sidebar({
 
         {/* Navigation items */}
         <nav className="p-3 space-y-1.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-          {!isCollapsed && visibleNavItems.some(item => ['requests','introduce','create','revise','testing','mis'].includes(item.id)) && <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Make System</div>}
+          {!isCollapsed && visibleNavItems.some(item => ['requests','introduce','create','mis'].includes(item.id)) && <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Make System</div>}
           {visibleNavItems.map((item) => {
             if (item.id === 'repair-system') return null;
             if (item.id === 'technical-new' || item.id === 'technical-all') return null;
@@ -90,14 +86,13 @@ export function Sidebar({
             if (item.id === 'requests') count = counts.totalRequests || 0;
             else if (item.id === 'introduce') count = counts.introducePending || 0;
             else if (item.id === 'create') count = counts.createPending || 0;
-            else if (item.id === 'revise') count = counts.revisePending || 0;
-            else if (item.id === 'testing') count = counts.testingPending || 0;
             else if (item.id === 'mis') count = counts.misPending || 0;
 
             return (
               <button
                 key={item.id}
                 type="button"
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => {
                   onSelectPage(item.id);
                   if (onCloseMobile) onCloseMobile();
@@ -137,7 +132,7 @@ export function Sidebar({
               const isActive = activePage === item.id;
               const Icon = ICON_MAP[item.id] || ClipboardList;
               return (
-                <button key={item.id} type="button" onClick={() => { onSelectPage(item.id); if (onCloseMobile) onCloseMobile(); }} title={isCollapsed ? item.label : undefined}
+                <button key={item.id} type="button" aria-current={isActive ? 'page' : undefined} onClick={() => { onSelectPage(item.id); if (onCloseMobile) onCloseMobile(); }} title={isCollapsed ? item.label : undefined}
                   className={`w-full flex items-center px-3 py-2.5 text-xs rounded-xl border transition-colors duration-150 cursor-pointer ${isActive ? 'bg-indigo-50/90 text-indigo-700 shadow-xs border-indigo-100/90 font-semibold' : 'border-transparent text-slate-600 hover:bg-slate-50/80 hover:text-slate-900 font-semibold'}`}>
                   <div className="flex items-center gap-3 min-w-0"><Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />{!isCollapsed && <span className="truncate">{item.label}</span>}</div>
                 </button>
@@ -147,7 +142,7 @@ export function Sidebar({
 
           {REPAIR_NAV_ITEMS.some(item => authService.canAccessStage(currentUser, item.id)) && <div className="pt-3 mt-2 border-t border-slate-100">
             {!isCollapsed && <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-indigo-400">System Repair FMS</div>}
-            {REPAIR_NAV_ITEMS.filter(item => authService.canAccessStage(currentUser, item.id)).map(item => { const Icon = REPAIR_ICONS[item.id]; return <button key={item.id} type="button" title={item.label} onClick={() => { onSelectPage(item.id); onCloseMobile?.(); }} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs rounded-xl border font-semibold ${activePage === item.id ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'border-transparent text-slate-600 hover:bg-slate-50'}`}><Icon className="w-4 h-4 shrink-0" />{!isCollapsed && <span className="truncate">{item.label}</span>}</button>; })}
+            {REPAIR_NAV_ITEMS.filter(item => authService.canAccessStage(currentUser, item.id)).map(item => { const Icon = REPAIR_ICONS[item.id]; return <button key={item.id} type="button" aria-current={activePage === item.id ? 'page' : undefined} title={item.label} onClick={() => { onSelectPage(item.id); onCloseMobile?.(); }} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs rounded-xl border font-semibold ${activePage === item.id ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'border-transparent text-slate-600 hover:bg-slate-50'}`}><Icon className="w-4 h-4 shrink-0" />{!isCollapsed && <span className="truncate">{item.label}</span>}</button>; })}
           </div>}
 
           {/* Admin Master Navigation Item (Only for Authorized Administrators) */}
@@ -155,6 +150,7 @@ export function Sidebar({
             <div className="pt-2 mt-2 border-t border-slate-100">
               <button
                 type="button"
+                aria-current={activePage === 'admin' ? 'page' : undefined}
                 onClick={() => {
                   onSelectPage('admin');
                   if (onCloseMobile) onCloseMobile();
@@ -181,7 +177,7 @@ export function Sidebar({
         </nav>
 
         {/* Sidebar Footer User Info & Logout */}
-        <div className="p-3 border-t border-slate-100/80 bg-slate-50/40 shrink-0">
+        <div className="premium-sidebar-footer p-3 border-t border-slate-100/80 bg-slate-50/40 shrink-0">
           {currentUser && (
             <div className={`flex items-center ${isCollapsed ? 'flex-col justify-center' : 'justify-between'} gap-2`}>
               <div title={`${currentUser.fullName || 'User'} (${currentUser.role})`} className={`flex items-center min-w-0 ${isCollapsed ? 'justify-center' : 'gap-2.5 flex-1'}`}>

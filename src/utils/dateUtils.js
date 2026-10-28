@@ -4,6 +4,21 @@
 
 export const TIMEZONE = 'Asia/Kolkata';
 
+function parseValidDate(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (!(value instanceof Date) && !['string', 'number'].includes(typeof value)) return null;
+  if (typeof value === 'string' && (/^[\s]*[\[{]/.test(value) || value.length > 64)) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+// Keep original valid ISO/date strings, but never propagate metadata as dates.
+export function normalizeDateValue(value) {
+  const date = parseValidDate(value);
+  if (!date) return null;
+  return typeof value === 'string' ? value.trim() : date.toISOString();
+}
+
 /**
  * Returns current ISO date string formatted for Asia/Kolkata
  */
@@ -15,8 +30,8 @@ export function getNowKolkataISO() {
  * Formats a Date or ISO string in Asia/Kolkata as YYYY-MM-DD
  */
 export function formatToKolkataDateString(dateInput = new Date()) {
-  const d = new Date(dateInput);
-  if (isNaN(d.getTime())) return '';
+  const d = parseValidDate(dateInput);
+  if (!d) return '';
   
   // Format into Asia/Kolkata parts
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -32,9 +47,8 @@ export function formatToKolkataDateString(dateInput = new Date()) {
  * Formats a date for human display (e.g., "16 Oct 2026")
  */
 export function formatDisplayDate(dateInput) {
-  if (!dateInput) return '-';
-  const d = new Date(dateInput);
-  if (isNaN(d.getTime())) return String(dateInput);
+  const d = parseValidDate(dateInput);
+  if (!d) return '-';
 
   return new Intl.DateTimeFormat('en-IN', {
     timeZone: TIMEZONE,
@@ -48,9 +62,8 @@ export function formatDisplayDate(dateInput) {
  * Formats a timestamp with time (e.g., "16 Oct 2026, 02:45 PM")
  */
 export function formatDisplayDateTime(dateInput) {
-  if (!dateInput) return '-';
-  const d = new Date(dateInput);
-  if (isNaN(d.getTime())) return String(dateInput);
+  const d = parseValidDate(dateInput);
+  if (!d) return '-';
 
   return new Intl.DateTimeFormat('en-IN', {
     timeZone: TIMEZONE,
@@ -83,6 +96,7 @@ export function calculateTargetDateFromDays(days, baseDate = new Date()) {
  * Parses YYYY-MM-DD into a localized midnight Date object for accurate day diffing
  */
 function parseDateParts(dateStr) {
+  dateStr = normalizeDateValue(dateStr);
   if (!dateStr) return null;
   // If full ISO, strip or extract date part
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);

@@ -33,8 +33,8 @@ var LOGIN_HEADERS = [
 // Standard FMS Row 6 Headers
 var FMS_HEADERS = [
   'Timestamps', 'Request No.', 'Company', 'System Name', 'Requirements Summary',
-  'Assigned Developer', 'Target Date', 'Image', 'Work Status', 'Planned',
-  'Actual', 'Delay', 'Meeting Date', 'Discussion Remarks', 'Planned 1',
+  'Image', 'Work Status', 'Planned', 'Actual', 'Delay', 'Assigned Developer',
+  'Target Date', 'Planned 1',
   'Actual 1', 'Delay 1', 'System Link / URL', 'Admin ID / Username', 'Password',
   'Reason for Hold', 'Hold Extend Target Date', 'Planned 2', 'Actual 2', 'Delay 2',
   'Decision', 'Remarks / Defect Rationale', 'Revision No', 'Upgrade Target Date',
@@ -369,7 +369,7 @@ function normalizeHeaderKey(str) {
  * Identify row 6 headings and column index mappings
  */
 function findHeaderMapping(sheet) {
-  var lastCol = Math.max(sheet.getLastColumn(), 37);
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
   var headerRow = 6;
   var headerValues = [];
   var found = false;
@@ -402,12 +402,14 @@ function findHeaderMapping(sheet) {
     if (!colMap[k]) colMap[k] = i + 1;
   }
 
-  function getCol(aliases, defaultIndex) {
+  function getCol(aliases) {
     for (var a = 0; a < aliases.length; a++) {
       var k = normalizeHeaderKey(aliases[a]);
       if (colMap[k]) return colMap[k];
     }
-    return defaultIndex;
+    // Deleted columns have no mapping. Positional fallbacks can point at another
+    // field or the metadata JSON after a user deletes workflow columns.
+    return 0;
   }
 
   // Protect Planned and Delay formula columns
@@ -429,34 +431,35 @@ function findHeaderMapping(sheet) {
     colCompany: getCol(['Company', 'Company Name'], 3),
     colSystemName: getCol(['System Name', 'System', 'Project Name'], 4),
     colSummary: getCol(['Requirements Summary', 'Business Purpose', 'Summary'], 5),
-    colDeveloper: getCol(['Assigned Developer', 'Developer', 'Assigned To'], 6),
-    colTargetDate: getCol(['Target Date', 'Target Completion Date'], 7),
-    colImage: getCol(['Image', 'Images', 'Attachment', 'Drive Link'], 8),
-    colWorkStatus: getCol(['Work Status', 'Dev Status', 'Status'], 9),
-    colActual: getCol(['Actual'], 11),
-    colMeetingDate: getCol(['Meeting Date', 'Kickoff Date'], 13),
-    colDiscussionRemarks: getCol(['Discussion Remarks', 'Remarks'], 14),
-    colActual1: getCol(['Actual 1', 'Actual1'], 16),
-    colSystemLink: getCol(['System Link / URL', 'System Link', 'App Link'], 18),
-    colAdminId: getCol(['Admin ID / Username', 'Admin ID', 'Username'], 19),
-    colAdminPassword: getCol(['Password', 'Admin Password'], 20),
-    colReasonForHold: getCol(['Reason for Hold', 'Hold Reason'], 21),
-    colHoldExtendTargetDate: getCol(['Hold Extend Target Date', 'Extended Target Date'], 22),
-    colActual2: getCol(['Actual 2', 'Actual2'], 24),
-    colDecision: getCol(['Decision', 'Test Decision'], 26),
-    colTestRemarks: getCol(['Remarks / Defect Rationale', 'Remarks / Defects'], 27),
-    colRevisionNo: getCol(['Revision No', 'Revision No.', 'Rev No'], 28),
-    colUpgradeTargetDate: getCol(['Upgrade Target Date', 'Revise Target Date'], 29),
-    colActual3: getCol(['Actual 3', 'Actual3'], 31),
-    colActual4: getCol(['Actual 4', 'Actual4'], 34),
-    colFinalStatus: getCol(['Final Status', 'FinalStatus'], 36)
+    colDeveloper: getCol(['Assigned Developer', 'Developer', 'Assigned To'], 11),
+    colTargetDate: getCol(['Target Date', 'Target Completion Date'], 12),
+    colImage: getCol(['Image', 'Images', 'Attachment', 'Drive Link'], 6),
+    colWorkStatus: getCol(['Work Status', 'Dev Status', 'Status'], 7),
+    colActual: getCol(['Actual'], 9),
+    // Read legacy dates only when their header exists; never write new meeting dates.
+    colMeetingDate: getCol(['Meeting Date', 'Kickoff Date'], 0),
+    colDiscussionRemarks: getCol(['Discussion Remarks'], 0),
+    colActual1: getCol(['Actual 1', 'Actual1'], 14),
+    colSystemLink: getCol(['System Link / URL', 'System Link', 'App Link'], 16),
+    colAdminId: getCol(['Admin ID / Username', 'Admin ID', 'Username'], 17),
+    colAdminPassword: getCol(['Password', 'Admin Password'], 18),
+    colReasonForHold: getCol(['Reason for Hold', 'Hold Reason'], 19),
+    colHoldExtendTargetDate: getCol(['Hold Extend Target Date', 'Extended Target Date'], 20),
+    colActual2: getCol(['Actual 2', 'Actual2'], 22),
+    colDecision: getCol(['Decision', 'Test Decision'], 24),
+    colTestRemarks: getCol(['Remarks / Defect Rationale', 'Remarks / Defects'], 25),
+    colRevisionNo: getCol(['Revision No', 'Revision No.', 'Rev No'], 26),
+    colUpgradeTargetDate: getCol(['Upgrade Target Date', 'Revise Target Date'], 27),
+    colActual3: getCol(['Actual 3', 'Actual3'], 29),
+    colActual4: getCol(['Actual 4', 'Actual4'], 32),
+    colFinalStatus: getCol(['Final Status', 'FinalStatus'], 34)
   };
 
   // Header-based formula protection always takes priority over fallback indexes.
   var ops = [
     mapping.colTimestamps, mapping.colRequestNo, mapping.colCompany, mapping.colSystemName,
     mapping.colSummary, mapping.colDeveloper, mapping.colTargetDate, mapping.colImage,
-    mapping.colActual, mapping.colMeetingDate, mapping.colDiscussionRemarks, mapping.colActual1,
+    mapping.colActual, mapping.colDiscussionRemarks, mapping.colActual1,
     mapping.colWorkStatus, mapping.colSystemLink, mapping.colAdminId, mapping.colAdminPassword,
     mapping.colReasonForHold, mapping.colHoldExtendTargetDate, mapping.colActual2,
     mapping.colDecision, mapping.colTestRemarks, mapping.colRevisionNo, mapping.colUpgradeTargetDate,
@@ -466,10 +469,10 @@ function findHeaderMapping(sheet) {
     if (ops[op] && protectedCols[ops[op]]) ops[op] = null;
   }
 
-  // Metadata JSON placed at Col 37 or lastCol + 1
+  // Preserve metadata even when deleting sheet columns shifts its header left.
   var colMeta = getCol(['_Make_System_Metadata', 'Metadata', 'Internal ID', '_meta'], 0);
-  if (!colMeta || protectedCols[colMeta] || colMeta <= 36) {
-    colMeta = Math.max(lastCol + 1, 37);
+  if (!colMeta || protectedCols[colMeta] || ops.indexOf(colMeta) !== -1) {
+    colMeta = Math.max(lastCol + 1, FMS_HEADERS.length + 1);
     while (protectedCols[colMeta]) colMeta++;
   }
   mapping.colMeta = colMeta;
@@ -483,6 +486,7 @@ function findHeaderMapping(sheet) {
 function safeSetCellValue(sheet, row, col, value, mapping) {
   if (!col || col <= 0) return;
   if (mapping && mapping.protectedCols && mapping.protectedCols[col]) return;
+  if (mapping && col === mapping.colMeta) return;
   sheet.getRange(row, col).setValue(value);
 }
 
@@ -548,6 +552,7 @@ function fetchAllRequests() {
 
     var meetingDate = mapping.colMeetingDate && mapping.colMeetingDate <= row.length ? formatDateCell(row[mapping.colMeetingDate - 1]) : '';
     var introRemarks = mapping.colDiscussionRemarks && mapping.colDiscussionRemarks <= row.length ? String(row[mapping.colDiscussionRemarks - 1] || '').trim() : '';
+    if (!introRemarks && metaObj && metaObj.introduction) introRemarks = metaObj.introduction.remarks || '';
     var holdReason = mapping.colReasonForHold && mapping.colReasonForHold <= row.length ? String(row[mapping.colReasonForHold - 1] || '').trim() : '';
     var holdExtendTargetDate = mapping.colHoldExtendTargetDate && mapping.colHoldExtendTargetDate <= row.length ? formatDateCell(row[mapping.colHoldExtendTargetDate - 1]) : '';
 
@@ -583,7 +588,7 @@ function fetchAllRequests() {
     var activityLog = (metaObj && metaObj.activityLog) ? metaObj.activityLog : [];
     var attachments = (metaObj && metaObj.attachments) ? metaObj.attachments : [];
     var currentRevisionNo = sheetRevisionNo || (metaObj && metaObj.currentRevisionNo ? metaObj.currentRevisionNo : null);
-    var upgradeTargetDate = sheetUpgradeTargetDate || (metaObj && metaObj.upgradeTargetDate ? metaObj.upgradeTargetDate : null);
+    var upgradeTargetDate = sheetUpgradeTargetDate || (metaObj && metaObj.upgradeTargetDate ? formatDateCell(metaObj.upgradeTargetDate) : null) || null;
     var systemUrl = (mapping.colSystemLink && mapping.colSystemLink <= row.length ? String(row[mapping.colSystemLink - 1] || '').trim() : '') || (metaObj && metaObj.systemUrl ? metaObj.systemUrl : '');
     var adminId = (mapping.colAdminId && mapping.colAdminId <= row.length ? String(row[mapping.colAdminId - 1] || '').trim() : '') || (metaObj && metaObj.adminId ? metaObj.adminId : '');
     var adminPassword = (mapping.colAdminPassword && mapping.colAdminPassword <= row.length ? String(row[mapping.colAdminPassword - 1] || '').trim() : '') || (metaObj && metaObj.adminPassword ? metaObj.adminPassword : '');
@@ -612,14 +617,13 @@ function fetchAllRequests() {
     }
 
     // Determine Stage & Status directly from sheet truth
-    var isIntroDone = Boolean(meetingDate || sheetActualStr);
+    var isIntroDone = Boolean(meetingDate || sheetActualStr || (metaObj && metaObj.introduction && metaObj.introduction.isCompleted));
     var introduction = isIntroDone ? {
       isCompleted: true,
-      meetingDate: meetingDate || formatDateCell(sheetActual),
       remarks: introRemarks,
       completedAt: formatTimestampCell(sheetActual) || timestampStr,
       completedBy: (metaObj && metaObj.introduction && metaObj.introduction.completedBy) ? metaObj.introduction.completedBy : 'Administrator'
-    } : { isCompleted: false, meetingDate: null, remarks: null };
+    } : { isCompleted: false, remarks: null };
 
     var currentStage = 'Introduce System';
     var currentStatus = 'Introduce: Pending';
@@ -627,12 +631,18 @@ function fetchAllRequests() {
     var progressPercent = 0;
     var latestRemarks = '';
 
-    if (sheetFinalStatus === 'Closed' || sheetActual4Str) {
+    if (sheetFinalStatus === 'Closed' || sheetActual4Str || (misUpdate && misUpdate.isCompleted)) {
       currentStage = 'Closed';
       currentStatus = 'Closed';
       workStatus = 'Closed';
       progressPercent = 100;
       latestRemarks = 'System Request completed and closed in MIS.';
+    } else if (sheetWorkStatus === 'Completed') {
+      currentStage = 'Update MIS System';
+      currentStatus = 'Update MIS: Pending';
+      workStatus = 'Completed';
+      progressPercent = 100;
+      latestRemarks = 'Development completed. Ready for MIS update.';
     } else if (currentRevisionNo) {
       if (sheetActual3Str || sheetWorkStatus === 'Completed') {
         currentStage = 'Update MIS System';
@@ -641,15 +651,15 @@ function fetchAllRequests() {
         progressPercent = 100;
         latestRemarks = 'Revision completed. Sent to Update MIS.';
       } else {
-        currentStage = 'Revise System';
+        currentStage = 'Create System';
         if (sheetWorkStatus === 'On Hold') {
           workStatus = 'On Hold';
-          currentStatus = 'Revise: On Hold';
+          currentStatus = 'Development: On Hold';
           latestRemarks = holdReason ? ('Hold: ' + holdReason) : 'Revision on hold';
         } else {
           workStatus = sheetWorkStatus || 'In Progress';
           progressPercent = (metaObj && metaObj.progressPercent) ? Number(metaObj.progressPercent) : 25;
-          currentStatus = 'Revise System (' + progressPercent + '%)';
+          currentStatus = 'Development: In Progress (' + progressPercent + '%)';
           latestRemarks = 'Under revision development: ' + currentRevisionNo;
         }
       }
@@ -661,22 +671,23 @@ function fetchAllRequests() {
       latestRemarks = sheetTestRemarks || 'Testing approved. Ready for MIS update.';
     } else if (sheetActual2Str || sheetDecision === 'Rejected') {
       if (sheetDecision === 'Rejected') {
-        currentStage = 'Revise System';
-        currentStatus = 'Revise System: Pending';
+        currentStage = 'Create System';
+        currentStatus = 'Development: Pending';
         workStatus = 'Pending Revision';
         latestRemarks = sheetTestRemarks ? ('Rejected in QA: ' + sheetTestRemarks) : 'Rejected in testing';
       } else {
-        currentStage = 'Testing System';
-        currentStatus = 'Testing: In Progress';
-        workStatus = 'Testing';
-        latestRemarks = 'Under QA testing';
+        currentStage = 'Update MIS System';
+        currentStatus = 'Update MIS: Pending';
+        workStatus = 'Completed';
+        progressPercent = 100;
+        latestRemarks = 'Development completed. Ready for MIS update.';
       }
     } else if (sheetActual1Str) {
-      currentStage = 'Testing System';
-      currentStatus = 'Testing: Pending';
+      currentStage = 'Update MIS System';
+      currentStatus = 'Update MIS: Pending';
       workStatus = 'Completed';
       progressPercent = 100;
-      latestRemarks = 'Development cycle completed. Sent to Testing System.';
+      latestRemarks = 'Development completed. Sent to Update MIS System.';
     } else if (isIntroDone) {
       currentStage = 'Create System';
       if (sheetWorkStatus === 'On Hold') {
@@ -686,8 +697,8 @@ function fetchAllRequests() {
       } else if (sheetWorkStatus === 'Completed') {
         workStatus = 'Completed';
         progressPercent = 100;
-        currentStage = 'Testing System';
-        currentStatus = 'Testing: Pending';
+        currentStage = 'Update MIS System';
+        currentStatus = 'Update MIS: Pending';
         latestRemarks = 'Development completed.';
       } else {
         workStatus = sheetWorkStatus || 'In Progress';
@@ -732,6 +743,7 @@ function fetchAllRequests() {
       closedAt: formatTimestampCell(sheetActual4) || (metaObj && metaObj.closedAt ? metaObj.closedAt : ''),
       completedAt: formatTimestampCell(sheetActual4) || (metaObj && (metaObj.closedAt || metaObj.completedAt) ? (metaObj.closedAt || metaObj.completedAt) : ''),
       actualCreateDate: formatTimestampCell(sheetActual1),
+      developmentCompletedAt: (metaObj && metaObj.developmentCompletedAt) || formatTimestampCell(sheetActual1),
       actualTestingDate: formatTimestampCell(sheetActual2),
       actualReviseDate: formatTimestampCell(sheetActual3),
       actualMisDate: formatTimestampCell(sheetActual4),
@@ -789,8 +801,8 @@ function handleCreateRequest(data) {
 
     var systemName = data.systemName || data.systemRequirements || 'New System';
     var companyName = data.companyName || '';
-    var assignedDeveloper = data.assignedDeveloper || '';
-    var targetDate = data.targetCompletionDate || '';
+    var assignedDeveloper = '';
+    var targetDate = '';
 
     var initialActivityLog = [{
       id: 'act-' + now.getTime(),
@@ -929,10 +941,11 @@ function handleApproveIntroduction(requestId, data) {
     rowObj.workStatus = 'In Progress';
     rowObj.progressPercent = 0;
     rowObj.latestRemarks = data.remarks || 'Introduction approved.';
+    rowObj.assignedDeveloper = data.assignedDeveloper || rowObj.assignedDeveloper || '';
+    rowObj.targetCompletionDate = data.targetCompletionDate || rowObj.targetCompletionDate || '';
     rowObj.lastUpdatedAt = nowISO;
     rowObj.introduction = {
       isCompleted: true,
-      meetingDate: data.meetingDate || '',
       remarks: data.remarks || '',
       completedAt: nowISO,
       completedBy: data.approvedBy || 'Administrator'
@@ -942,7 +955,7 @@ function handleApproveIntroduction(requestId, data) {
       action: 'Introduction Approved',
       actor: data.approvedBy || 'Administrator',
       timestamp: nowISO,
-      details: 'Meeting held on ' + (data.meetingDate || '') + '. Scope approved.'
+      details: 'Introduction approved. Scope approved.'
     });
     return rowObj;
   });
@@ -967,8 +980,8 @@ function handleUpdateDevelopmentProgress(requestId, data) {
       var pct = parseInt(data.progressPercent, 10) || 0;
       rowObj.progressPercent = pct;
       rowObj.latestRemarks = data.remarks || 'Progress updated.';
-      rowObj.currentStage = rowObj.currentRevisionNo ? 'Revise System' : 'Create System';
-      rowObj.currentStatus = rowObj.currentRevisionNo ? ('Revise System (' + pct + '%)') : ('Development: In Progress (' + pct + '%)');
+      rowObj.currentStage = 'Create System';
+      rowObj.currentStatus = 'Development: In Progress (' + pct + '%)';
       rowObj.activityLog.push({
         id: 'act-' + new Date().getTime(),
         action: 'Development Progress',
@@ -979,7 +992,7 @@ function handleUpdateDevelopmentProgress(requestId, data) {
     } else if (workStatus === 'On Hold') {
       rowObj.latestRemarks = data.holdReason || 'Put on hold.';
       rowObj.holdReason = data.holdReason || '';
-      rowObj.currentStage = rowObj.currentRevisionNo ? 'Revise System' : 'Create System';
+      rowObj.currentStage = 'Create System';
       rowObj.currentStatus = rowObj.currentRevisionNo ? 'Revise: On Hold' : 'Development: On Hold';
       var extDate = data.holdExtendTargetDate || data.extendedTargetDate || null;
       if (extDate) rowObj.holdExtendTargetDate = extDate;
@@ -997,10 +1010,11 @@ function handleUpdateDevelopmentProgress(requestId, data) {
         rowObj.currentStage = 'Update MIS System';
         rowObj.currentStatus = 'Update MIS: Pending';
       } else {
-        rowObj.latestRemarks = data.remarks || 'Development completed. Released for Testing.';
-        rowObj.currentStage = 'Testing System';
-        rowObj.currentStatus = 'Testing: Pending';
+        rowObj.latestRemarks = data.remarks || 'Development completed. Sent to Update MIS System.';
+        rowObj.currentStage = 'Update MIS System';
+        rowObj.currentStatus = 'Update MIS: Pending';
       }
+      rowObj.developmentCompletedAt = nowISO;
       rowObj.activityLog.push({
         id: 'act-' + new Date().getTime(),
         action: 'Development Completed',
@@ -1149,7 +1163,7 @@ function updateRequestRow(requestId, updateFn) {
     id: metaObj.id || ('req-' + matchedRow[mapping.colRequestNo - 1]),
     requestNo: String(matchedRow[mapping.colRequestNo - 1] || ''),
     currentRevisionNo: metaObj.currentRevisionNo || null,
-    upgradeTargetDate: metaObj.upgradeTargetDate || null,
+    upgradeTargetDate: formatDateCell(metaObj.upgradeTargetDate) || null,
     companyName: String(matchedRow[mapping.colCompany - 1] || ''),
     systemName: String(matchedRow[mapping.colSystemName - 1] || ''),
     businessPurpose: String(matchedRow[mapping.colSummary - 1] || ''),
@@ -1166,6 +1180,7 @@ function updateRequestRow(requestId, updateFn) {
     createdAt: metaObj.createdAt || formatTimestampCell(matchedRow[mapping.colTimestamps - 1]),
     createdBy: metaObj.createdBy || 'Administrator',
     lastUpdatedAt: new Date().toISOString(),
+    developmentCompletedAt: metaObj.developmentCompletedAt || '',
     introduction: metaObj.introduction || { isCompleted: false },
     testingHistory: metaObj.testingHistory || [],
     misUpdate: metaObj.misUpdate || null,
@@ -1179,9 +1194,9 @@ function updateRequestRow(requestId, updateFn) {
   // Write changes to specific cells
   // 1. Introduce step
   if (updated.introduction && updated.introduction.isCompleted) {
-    if (mapping.colActual) safeSetCellValue(sheet, actualRowNumber, mapping.colActual, new Date(), mapping);
-    if (mapping.colMeetingDate && updated.introduction.meetingDate) safeSetCellValue(sheet, actualRowNumber, mapping.colMeetingDate, updated.introduction.meetingDate, mapping);
-    if (mapping.colDiscussionRemarks && updated.introduction.remarks) safeSetCellValue(sheet, actualRowNumber, mapping.colDiscussionRemarks, updated.introduction.remarks, mapping);
+    if (mapping.colDeveloper && updated.assignedDeveloper) safeSetCellValue(sheet, actualRowNumber, mapping.colDeveloper, updated.assignedDeveloper, mapping);
+    if (mapping.colTargetDate && updated.targetCompletionDate) safeSetCellValue(sheet, actualRowNumber, mapping.colTargetDate, updated.targetCompletionDate, mapping);
+    if (mapping.colActual && !matchedRow[mapping.colActual - 1]) safeSetCellValue(sheet, actualRowNumber, mapping.colActual, new Date(), mapping);
     if (mapping.colFinalStatus) safeSetCellValue(sheet, actualRowNumber, mapping.colFinalStatus, 'In Progress', mapping);
   }
 
@@ -1196,9 +1211,9 @@ function updateRequestRow(requestId, updateFn) {
       if (mapping.colHoldExtendTargetDate) safeSetCellValue(sheet, actualRowNumber, mapping.colHoldExtendTargetDate, '', mapping);
       if (updated.currentRevisionNo) {
         if (mapping.colRevisionNo) safeSetCellValue(sheet, actualRowNumber, mapping.colRevisionNo, updated.currentRevisionNo, mapping);
-        if (mapping.colActual3) safeSetCellValue(sheet, actualRowNumber, mapping.colActual3, new Date(), mapping);
+        if (mapping.colActual3 && !matchedRow[mapping.colActual3 - 1]) safeSetCellValue(sheet, actualRowNumber, mapping.colActual3, new Date(), mapping);
       } else {
-        if (mapping.colActual1) safeSetCellValue(sheet, actualRowNumber, mapping.colActual1, new Date(), mapping);
+        if (mapping.colActual1 && !matchedRow[mapping.colActual1 - 1]) safeSetCellValue(sheet, actualRowNumber, mapping.colActual1, new Date(), mapping);
       }
     }
   }
@@ -1207,27 +1222,10 @@ function updateRequestRow(requestId, updateFn) {
   if (updated.adminId && mapping.colAdminId) safeSetCellValue(sheet, actualRowNumber, mapping.colAdminId, updated.adminId, mapping);
   if (updated.adminPassword && mapping.colAdminPassword) safeSetCellValue(sheet, actualRowNumber, mapping.colAdminPassword, updated.adminPassword, mapping);
 
-  // 3. Testing step
-  if (updated.testingHistory && updated.testingHistory.length > 0) {
-    var latestTest = updated.testingHistory[updated.testingHistory.length - 1];
-    if (mapping.colActual2) safeSetCellValue(sheet, actualRowNumber, mapping.colActual2, new Date(), mapping);
-    if (mapping.colDecision && latestTest.decision) safeSetCellValue(sheet, actualRowNumber, mapping.colDecision, latestTest.decision, mapping);
-    if (mapping.colTestRemarks && latestTest.remarks) safeSetCellValue(sheet, actualRowNumber, mapping.colTestRemarks, latestTest.remarks, mapping);
-
-    if (latestTest.decision === 'Rejected') {
-      var revVal = latestTest.generatedRevisionNo || updated.currentRevisionNo || '';
-      if (mapping.colRevisionNo && revVal) safeSetCellValue(sheet, actualRowNumber, mapping.colRevisionNo, revVal, mapping);
-      var targetUpgradeDate = updated.upgradeTargetDate || latestTest.upgradeTargetDate || null;
-      if (mapping.colUpgradeTargetDate && targetUpgradeDate) safeSetCellValue(sheet, actualRowNumber, mapping.colUpgradeTargetDate, targetUpgradeDate, mapping);
-      if (mapping.colWorkStatus) safeSetCellValue(sheet, actualRowNumber, mapping.colWorkStatus, 'Revision In Progress', mapping);
-    } else if (latestTest.decision === 'Approved') {
-      if (mapping.colWorkStatus) safeSetCellValue(sheet, actualRowNumber, mapping.colWorkStatus, 'Testing Approved', mapping);
-    }
-  }
-
+  // Historical testing/revision records are retained in metadata only.
   // 4. MIS closure
   if (updated.misUpdate && updated.misUpdate.isCompleted) {
-    if (mapping.colActual4) safeSetCellValue(sheet, actualRowNumber, mapping.colActual4, new Date(), mapping);
+    if (mapping.colActual4 && !matchedRow[mapping.colActual4 - 1]) safeSetCellValue(sheet, actualRowNumber, mapping.colActual4, new Date(), mapping);
     if (mapping.colFinalStatus) safeSetCellValue(sheet, actualRowNumber, mapping.colFinalStatus, 'Closed', mapping);
     if (mapping.colWorkStatus) safeSetCellValue(sheet, actualRowNumber, mapping.colWorkStatus, 'Closed', mapping);
   }
@@ -1394,11 +1392,11 @@ function getInitialSeedUsers() {
 }
 
 function userStageLabels() {
-  return { requests:'System Requests', 'technical-new':'Raise Technical Help', 'technical-all':'All Technical Tickets', introduce:'Introduce System', create:'Create System', revise:'Revise System', testing:'Testing System', mis:'Update MIS System', 'repair-new':'New Issue Request', 'repair-approval':'Approval For Repair', 'repair-work':'Resolve Problem' };
+  return { requests:'System Requests', 'technical-new':'Raise Technical Help', 'technical-all':'All Technical Tickets', introduce:'Introduce System', create:'Create System', mis:'Update MIS System', 'repair-new':'New Issue Request', 'repair-approval':'Approval For Repair', 'repair-work':'Resolve Problem' };
 }
 
 function loginSystems() {
-  return { make:{ label:'Make System', stages:['requests','introduce','create','revise','testing','mis'] }, technical:{ label:'Technical Help', stages:['technical-new','technical-all'] }, repair:{ label:'Repair System', stages:['repair-new','repair-approval','repair-work'] } };
+  return { make:{ label:'Make System', stages:['requests','introduce','create','mis'] }, technical:{ label:'Technical Help', stages:['technical-new','technical-all'] }, repair:{ label:'Repair System', stages:['repair-new','repair-approval','repair-work'] } };
 }
 
 function loginAppUser(payload) {
@@ -1420,13 +1418,13 @@ function authorizeAppAction(action, token) {
   var adminActions = ['getUsers','saveUsers','createUser','updateUser','deleteUser','initSheet','setupLoginPermissions'];
   if (adminActions.indexOf(action) !== -1) { if (!admin) throw new Error('Only Admin can manage users and permissions.'); return user; }
   if (action === 'getSession' || action === 'getMasterOptions' || action === 'ping' || admin) return user;
-  var reads = {getTechnicalTickets:['technical-all'],getRepairIssues:['repair-new','repair-approval','repair-work'],getRequests:['requests','introduce','create','revise','testing','mis'],checkSync:['requests','introduce','create','revise','testing','mis']};
+  var reads = {getTechnicalTickets:['technical-all'],getRepairIssues:['repair-new','repair-approval','repair-work'],getRequests:['requests','introduce','create','mis'],checkSync:['requests','introduce','create','mis']};
   var writes = {createTechnicalTicket:'technical-new',submitTechnicalTicket:'technical-all',createRepairIssue:'repair-new',approveRepairIssue:'repair-approval',resolveRepairIssue:'repair-work',createRequest:'requests',approveIntroduction:'introduce',submitTestingDecision:'testing',completeMisUpdate:'mis'};
   if (reads[action]) {
     if (!reads[action].some(function(id) { return user.permissions[id] && user.permissions[id].view; })) throw new Error('No access to this system.');
     return user;
   }
-  var ids = action === 'updateDevelopmentProgress' ? ['create','revise'] : action === 'uploadAttachment' ? ['requests','technical-new','repair-new'] : [writes[action]];
+  var ids = action === 'updateDevelopmentProgress' ? ['create'] : action === 'uploadAttachment' ? ['requests','technical-new','repair-new'] : [writes[action]];
   if (!ids.some(function(id) { return id && user.permissions[id] && user.permissions[id].view && user.permissions[id].update; })) throw new Error('Update access denied.');
   return user;
 }
@@ -1691,11 +1689,6 @@ function fetchMasterOptions() {
     }
   }
 
-  // Companies come exclusively from Master column A, without hardcoded additions.
-  for (var dev = 0; dev < DEFAULT_DEVELOPERS.length; dev++) {
-    if (developers.indexOf(DEFAULT_DEVELOPERS[dev]) === -1) developers.push(DEFAULT_DEVELOPERS[dev]);
-  }
-
   return { companies: companies, developers: developers };
 }
 
@@ -1834,16 +1827,22 @@ function parseJsonSafely(str, fallback) {
 
 function formatDateCell(val) {
   if (!val) return '';
-  if (val instanceof Date) return Utilities.formatDate(val, 'Asia/Kolkata', 'yyyy-MM-dd');
+  if (val instanceof Date) return isNaN(val.getTime()) ? '' : Utilities.formatDate(val, 'Asia/Kolkata', 'yyyy-MM-dd');
+  if (typeof val !== 'string') return '';
   var s = String(val).trim();
+  if (!/^\d{4}-\d{2}-\d{2}(?:$|[T ])/.test(s) && !/^\d{1,2}\/\d{1,2}\/\d{4}(?:$|[ T])/.test(s)) return '';
+  if (isNaN(new Date(s).getTime())) return '';
   if (s.indexOf('T') !== -1) return s.split('T')[0];
   return s;
 }
 
 function formatTimestampCell(val) {
   if (!val) return '';
-  if (val instanceof Date) return Utilities.formatDate(val, 'Asia/Kolkata', "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-  return String(val).trim();
+  if (val instanceof Date) return isNaN(val.getTime()) ? '' : val.toISOString();
+  if (typeof val !== 'string') return '';
+  var s = val.trim();
+  if (/^[\[{]/.test(s) || isNaN(new Date(s).getTime())) return '';
+  return s;
 }
 
 function safeStringifyMeta(obj) {

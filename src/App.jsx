@@ -12,8 +12,6 @@ import { RequestDetailsModal } from './components/RequestDetailsModal';
 import { SystemRequestsPage } from './pages/SystemRequestsPage';
 import { IntroduceSystemPage } from './pages/IntroduceSystemPage';
 import { CreateSystemPage } from './pages/CreateSystemPage';
-import { ReviseSystemPage } from './pages/ReviseSystemPage';
-import { TestingSystemPage } from './pages/TestingSystemPage';
 import { UpdateMisSystemPage } from './pages/UpdateMisSystemPage';
 import { AdminMasterPage } from './pages/AdminMasterPage';
 import { LoginPage } from './pages/LoginPage';
@@ -186,21 +184,15 @@ export default function App() {
       totalRequests: requests.length,
       introducePending: 0,
       createPending: 0,
-      revisePending: 0,
-      testingPending: 0,
       misPending: 0
     };
 
     requests.forEach(r => {
       if (!r.introduction?.isCompleted) result.introducePending++;
-      if (r.introduction?.isCompleted && r.currentStage === STAGES.CREATE && !r.currentRevisionNo) {
+      if (r.introduction?.isCompleted && r.currentStage === STAGES.CREATE) {
         result.createPending++;
       }
 
-      const hasRevision = Boolean(r.currentRevisionNo) || (r.testingHistory && r.testingHistory.some(t => t.decision === 'Rejected'));
-      const isPendingRevision = r.currentStage === STAGES.REVISE || (r.currentStage === STAGES.CREATE && Boolean(r.currentRevisionNo));
-      if (hasRevision && isPendingRevision && r.workStatus !== WORK_STATUS.COMPLETED) result.revisePending++;
-      if (r.currentStage === STAGES.TESTING) result.testingPending++;
       if (r.currentStage === STAGES.UPDATE_MIS) result.misPending++;
     });
 
@@ -270,31 +262,13 @@ export default function App() {
       if (targetReq.currentRevisionNo) {
         showToast(`Revision completed (100%) for ${targetReq.requestNo}. Transferred to Update MIS System: Pending.`, 'success');
       } else {
-        showToast(`Development completed (100%) for ${targetReq.requestNo}. Sent to Testing System: Pending.`, 'success');
+        showToast(`Development completed (100%) for ${targetReq.requestNo}. Transferred to Update MIS System: Pending.`, 'success');
       }
     } else if (devData.workStatus === WORK_STATUS.ON_HOLD) {
       const dateMsg = devData.extendedTargetDate ? ` (Target date extended to ${devData.extendedTargetDate})` : '';
       showToast(`Request ${targetReq.requestNo} placed On Hold${dateMsg}.`, 'error');
     } else {
       showToast(`Progress updated to ${devData.progressPercent}% for ${targetReq.requestNo}.`, 'success');
-    }
-  };
-
-  // Handler: Testing Decision
-  const handleSubmitTestingDecision = async (requestId, testData) => {
-    const res = await dataService.submitTestingDecision(requestId, testData);
-    const updated = res.allRequests || (await dataService.listRequests());
-    setRequests(updated);
-    const targetReq = res.updatedReq || res;
-
-    if (testData.decision === 'Approved') {
-      showToast(`Testing Approved for ${targetReq.requestNo}. Transferred to Update MIS System: Pending.`, 'success');
-    } else {
-      const dateMsg = testData.extendedTargetDate ? ` (Target date extended to ${testData.extendedTargetDate})` : '';
-      showToast(
-        `Testing Rejected for ${targetReq.requestNo}. Revision ${targetReq.currentRevisionNo} generated${dateMsg}. Transferred to Revise System: Pending.`,
-        'error'
-      );
     }
   };
 
@@ -412,6 +386,7 @@ export default function App() {
                 {activePage === 'introduce' && (
                   <IntroduceSystemPage
                     requests={requests}
+                    developerOptions={masterOptions.developers}
                     onApproveIntroduction={handleApproveIntroduction}
                     onViewDetails={(req) => setDetailsRequest(req)}
                     canApprove={authService.canAccessStage(currentUser, 'introduce', 'update')}
@@ -427,23 +402,6 @@ export default function App() {
                   />
                 )}
 
-                {activePage === 'revise' && (
-                  <ReviseSystemPage
-                    requests={requests}
-                    onUpdateProgress={handleUpdateProgress}
-                    onViewDetails={(req) => setDetailsRequest(req)}
-                    canEdit={authService.canAccessStage(currentUser, 'revise', 'update')}
-                  />
-                )}
-
-                {activePage === 'testing' && (
-                  <TestingSystemPage
-                    requests={requests}
-                    onSubmitDecision={handleSubmitTestingDecision}
-                    onViewDetails={(req) => setDetailsRequest(req)}
-                    canApprove={authService.canAccessStage(currentUser, 'testing', 'update')}
-                  />
-                )}
 
                 {activePage === 'mis' && (
                   <UpdateMisSystemPage

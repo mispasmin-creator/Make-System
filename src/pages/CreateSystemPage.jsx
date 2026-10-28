@@ -14,6 +14,7 @@ import { ImageAttachmentCell } from '../components/ImageAttachmentCell';
 import { formatDisplayDate, calculateDueStatus } from '../utils/dateUtils';
 import { STAGES, WORK_STATUS } from '../constants/stages';
 import { CreateActionModal } from '../components/CreateActionModal';
+import { isDevelopmentComplete } from '../utils/systemWorkflow.mjs';
 
 export function CreateSystemPage({
   requests = [],
@@ -29,16 +30,11 @@ export function CreateSystemPage({
   const [pageSize, setPageSize] = useState(10);
 
   const pendingRequests = useMemo(() => {
-    return requests.filter(r => r.introduction?.isCompleted && r.currentStage === STAGES.CREATE && !r.currentRevisionNo);
+    return requests.filter(r => r.introduction?.isCompleted && r.currentStage === STAGES.CREATE && !isDevelopmentComplete(r));
   }, [requests]);
 
   const completedRequests = useMemo(() => {
-    return requests.filter(r =>
-      r.currentStage === STAGES.TESTING ||
-      r.currentStage === STAGES.UPDATE_MIS ||
-      r.currentStage === STAGES.CLOSED ||
-      (r.workStatus === WORK_STATUS.COMPLETED && r.currentStage !== STAGES.CREATE)
-    );
+    return requests.filter(isDevelopmentComplete);
   }, [requests]);
 
   const urgentSummary = useMemo(() => {
@@ -70,7 +66,7 @@ export function CreateSystemPage({
           <div>
             <h1 className="text-lg font-bold text-slate-800 leading-tight tracking-tight">Create System</h1>
             <p className="text-xs text-slate-500">
-              Active engineering cycles, milestones, hold states, and QA revisions • <strong>{pendingRequests.length}</strong> active
+              Development progress, milestones, and hold states • <strong>{pendingRequests.length}</strong> active
             </p>
           </div>
         </div>
@@ -187,7 +183,7 @@ export function CreateSystemPage({
                       </span>
                       <span className="text-[11px]">
                         {activeTab === 'pending'
-                          ? 'Approve an introduction or return a request from QA to begin development.'
+                          ? 'Approve an introduction to begin development.'
                           : 'Completed development requests will appear here.'}
                       </span>
                     </div>

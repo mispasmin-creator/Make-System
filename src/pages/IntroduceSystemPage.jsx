@@ -10,6 +10,7 @@ export function IntroduceSystemPage({
   requests = [],
   onApproveIntroduction,
   onViewDetails,
+  developerOptions = [],
   canApprove = true
 }) {
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'completed'
@@ -86,11 +87,29 @@ export function IntroduceSystemPage({
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-[0_6px_24px_-4px_rgba(15,23,42,0.05),0_2px_8px_-1px_rgba(15,23,42,0.02)] overflow-hidden flex flex-col flex-1 min-h-0">
         <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className="w-full border-collapse text-left text-xs">
+          <table className={`w-full table-fixed border-collapse text-left text-xs ${activeTab === 'pending' ? 'min-w-[1240px]' : 'min-w-[1840px]'}`}>
+            <colgroup>
+              <col style={{ width: activeTab === 'pending' ? 190 : 110 }} />
+              <col style={{ width: 135 }} />
+              <col style={{ width: 120 }} />
+              <col />
+              <col style={{ width: 280 }} />
+              <col style={{ width: 80 }} />
+              {activeTab === 'pending' ? (
+                <col style={{ width: 220 }} />
+              ) : (
+                <>
+                  <col style={{ width: 200 }} />
+                  <col style={{ width: 140 }} />
+                  <col style={{ width: 240 }} />
+                  <col style={{ width: 210 }} />
+                </>
+              )}
+            </colgroup>
             <thead className="sticky top-0 bg-slate-50/90 z-20 shadow-xs border-b border-slate-200/70">
               <tr>
                 {/* Sticky Left Action Column */}
-                <th className="sticky left-0 bg-slate-50/95 z-30 border-r border-slate-200/70 px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                <th className="sticky left-0 bg-slate-50/95 z-30 border-r border-slate-200/70 px-3 py-3 text-center font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                   Action
                 </th>
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
@@ -102,17 +121,14 @@ export function IntroduceSystemPage({
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                   System Name
                 </th>
+                <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px]">
+                  Business Purpose &amp; Justification
+                </th>
                 <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap text-center">
                   Image
                 </th>
-                <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
-                  Assigned Developer
-                </th>
                 {activeTab === 'pending' ? (
                   <>
-                    <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Target Date
-                    </th>
                     <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                       Created At
                     </th>
@@ -120,7 +136,10 @@ export function IntroduceSystemPage({
                 ) : (
                   <>
                     <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Meeting Date
+                      Assigned Developer
+                    </th>
+                    <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                      Target Date
                     </th>
                     <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
                       Discussion Remarks
@@ -136,7 +155,7 @@ export function IntroduceSystemPage({
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
               {paginatedList.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'pending' ? 8 : 9} className="py-12 text-center text-slate-400">
+                  <td colSpan={activeTab === 'pending' ? 7 : 10} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <Handshake className="w-8 h-8 text-slate-300" />
                       <span className="font-semibold text-slate-700">
@@ -152,7 +171,7 @@ export function IntroduceSystemPage({
                 </tr>
               ) : (
                 paginatedList.map((req) => (
-                  <tr key={req.id} className="hover:bg-indigo-50/20 transition-colors">
+                  <tr key={req.id} className="group hover:bg-indigo-50/20 transition-colors [&>td]:align-middle">
                     {/* Sticky Action Column */}
                     <td className="sticky left-0 bg-white group-hover:bg-slate-50/90 z-10 border-r border-slate-100 px-3 py-2 text-center shadow-xs whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">
@@ -192,31 +211,31 @@ export function IntroduceSystemPage({
                       {req.systemName || req.systemRequirements}
                     </td>
 
+                    <td className="px-3.5 py-2.5 whitespace-pre-wrap break-words leading-relaxed text-slate-700" title={req.businessPurpose || ''}>
+                      {req.businessPurpose || '—'}
+                    </td>
+
                     <ImageAttachmentCell
                       attachments={req.attachments}
                       onViewDetails={() => onViewDetails(req)}
                     />
 
-                    <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-700">
-                      {req.assignedDeveloper}
-                    </td>
-
                     {activeTab === 'pending' ? (
                       <>
-                        <td className="px-3.5 py-2.5 whitespace-nowrap">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-medium text-slate-700">{formatDisplayDate(req.targetCompletionDate)}</span>
-                            <StatusBadge type="due" targetDate={req.targetCompletionDate} />
-                          </div>
-                        </td>
                         <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-500">
                           {formatDisplayDateTime(req.createdAt)}
                         </td>
                       </>
                     ) : (
                       <>
-                        <td className="px-3.5 py-2.5 whitespace-nowrap font-semibold text-slate-800">
-                          {formatDisplayDate(req.introduction?.meetingDate)}
+                        <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-700">
+                          {req.assignedDeveloper}
+                        </td>
+                        <td className="px-3.5 py-2.5 whitespace-nowrap">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium text-slate-700">{formatDisplayDate(req.targetCompletionDate)}</span>
+                            <StatusBadge type="due" targetDate={req.targetCompletionDate} />
+                          </div>
                         </td>
                         <td className="px-3.5 py-2.5 max-w-xs truncate text-slate-700" title={req.introduction?.remarks}>
                           {req.introduction?.remarks}
@@ -254,6 +273,7 @@ export function IntroduceSystemPage({
             setSelectedRequest(null);
           }}
           request={selectedRequest}
+          developerOptions={developerOptions}
           onSubmit={onApproveIntroduction}
         />
       )}

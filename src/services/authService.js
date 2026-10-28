@@ -26,8 +26,6 @@ export const APP_STAGES = [
   { id: 'technical-all', label: 'All Technical Tickets', description: 'View and filter technical help tickets' },
   { id: 'introduce', label: 'Introduce System', description: 'Kickoff meetings and initial requirement discussions' },
   { id: 'create', label: 'Create System', description: 'Core software development progress and hold management' },
-  { id: 'revise', label: 'Revise System', description: 'Post-QA defect resolutions and revision cycles' },
-  { id: 'testing', label: 'Testing System', description: 'QA verification, approvals, and defect rationale logging' },
   { id: 'mis', label: 'Update MIS System', description: 'Final MIS synchronization and request lifecycle closure' },
   { id: 'repair-new', label: 'New Issue Request', description: 'Submit new repair issue requests', repairAction: true },
   { id: 'repair-approval', label: 'Approval For Repair', description: 'Assess issues and submit repair approvals', repairAction: true },

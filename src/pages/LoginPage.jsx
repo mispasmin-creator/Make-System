@@ -28,28 +28,6 @@ export function LoginPage({ onLoginSuccess }) {
     }
   };
 
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [isHovered, setIsHovered] = useState(false);
-
-  const handleMouseMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width;
-    const py = (e.clientY - rect.top) / rect.height;
-    // Smooth 3D tilt tracking cursor (-6 to +6 deg)
-    const tiltY = (px - 0.5) * 8;
-    const tiltX = (0.5 - py) * 8;
-    setTilt({ x: tiltX, y: tiltY });
-  };
-
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-    setTilt({ x: 0, y: 0 });
-  };
-
   return (
     <div
       style={{
@@ -58,8 +36,8 @@ export function LoginPage({ onLoginSuccess }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#EDF3FA',
-        fontFamily: "'Plus Jakarta Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        backgroundColor: '#f2f5fc',
+        fontFamily: 'var(--font-sans)',
         padding: '24px 16px',
         position: 'relative',
         overflow: 'hidden',
@@ -72,12 +50,10 @@ export function LoginPage({ onLoginSuccess }) {
           position: 'absolute',
           top: '50%',
           left: '50%',
-          transform: isHovered
-            ? `translate(-50%, -50%) scale(1.08)`
-            : 'translate(-50%, -50%) scale(1)',
+          transform: 'translate(-50%, -50%)',
           width: '850px',
           height: '560px',
-          background: 'radial-gradient(circle, rgba(0, 102, 255, 0.16) 0%, rgba(219, 234, 254, 0.45) 60%, transparent 80%)',
+          background: 'radial-gradient(circle, rgba(115, 169, 251, 0.25) 0%, rgba(219, 233, 253, 0.45) 60%, transparent 80%)',
           filter: 'blur(80px)',
           transition: 'transform 0.4s ease',
           pointerEvents: 'none'
@@ -86,10 +62,8 @@ export function LoginPage({ onLoginSuccess }) {
 
       {/* Main Floating 2-Column Card with Cursor-triggered Levitating Float & 3D Tilt */}
       <div
-        onMouseMove={handleMouseMove}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className={isHovered ? 'animate-card-floating' : ''}
+        data-cursor-float
+        className="login-floating-card"
         style={{
           position: 'relative',
           zIndex: 10,
@@ -97,15 +71,6 @@ export function LoginPage({ onLoginSuccess }) {
           maxWidth: '880px',
           minHeight: '480px',
           borderRadius: '28px',
-          transition: isHovered
-            ? 'none'
-            : 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease',
-          transform: isHovered
-            ? undefined
-            : 'perspective(1200px) translateY(0px)',
-          boxShadow: isHovered
-            ? undefined
-            : '0 25px 60px -15px rgba(0, 80, 220, 0.14), 0 0 1px rgba(0, 0, 0, 0.08)'
         }}
       >
         <main
@@ -120,19 +85,14 @@ export function LoginPage({ onLoginSuccess }) {
             flexDirection: 'row',
             flexWrap: 'wrap',
             overflow: 'hidden',
-            transform: isHovered
-              ? `perspective(1200px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`
-              : 'perspective(1200px) rotateX(0deg) rotateY(0deg)',
-            transition: 'transform 0.1s ease-out',
-            willChange: 'transform'
           }}
         >
-        {/* Left Side: Brand Visual with Fluid Blue Waves */}
+        {/* Midnight and royal-blue brand visual */}
         <section
           style={{
             flex: '1 1 380px',
             position: 'relative',
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #F5F9FE 55%, #E3EFFF 100%)',
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #f3f7ff 55%, #dbe9fd 100%)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -158,23 +118,23 @@ export function LoginPage({ onLoginSuccess }) {
           >
             <defs>
               <linearGradient id="waveBack" x1="0%" y1="100%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#0066FF" stopOpacity="0.22" />
-                <stop offset="70%" stopColor="#93C5FD" stopOpacity="0.12" />
+                <stop offset="0%" stopColor="#1951dc" stopOpacity="0.22" />
+                <stop offset="70%" stopColor="#73a9fb" stopOpacity="0.12" />
                 <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
               </linearGradient>
               <linearGradient id="waveMid" x1="0%" y1="100%" x2="70%" y2="20%">
-                <stop offset="0%" stopColor="#0066FF" stopOpacity="0.45" />
-                <stop offset="60%" stopColor="#60A5FA" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#EFF6FF" stopOpacity="0.05" />
+                <stop offset="0%" stopColor="#1951dc" stopOpacity="0.45" />
+                <stop offset="60%" stopColor="#73a9fb" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="#dbe9fd" stopOpacity="0.05" />
               </linearGradient>
               <linearGradient id="waveDeep" x1="0%" y1="100%" x2="50%" y2="30%">
-                <stop offset="0%" stopColor="#0055EE" stopOpacity="0.75" />
-                <stop offset="50%" stopColor="#0066FF" stopOpacity="0.55" />
-                <stop offset="100%" stopColor="#93C5FD" stopOpacity="0.1" />
+                <stop offset="0%" stopColor="#0b2cb1" stopOpacity="0.75" />
+                <stop offset="50%" stopColor="#1951dc" stopOpacity="0.55" />
+                <stop offset="100%" stopColor="#73a9fb" stopOpacity="0.1" />
               </linearGradient>
               <linearGradient id="waveFront" x1="0%" y1="100%" x2="40%" y2="50%">
-                <stop offset="0%" stopColor="#0066FF" stopOpacity="0.9" />
-                <stop offset="100%" stopColor="#38BDF8" stopOpacity="0.35" />
+                <stop offset="0%" stopColor="#1951dc" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#73a9fb" stopOpacity="0.35" />
               </linearGradient>
             </defs>
 
@@ -224,7 +184,7 @@ export function LoginPage({ onLoginSuccess }) {
                 justifyContent: 'center',
                 padding: '14px',
                 marginBottom: '18px',
-                boxShadow: '0 14px 32px -6px rgba(0, 102, 255, 0.22), 0 4px 12px rgba(15, 23, 42, 0.04)',
+                boxShadow: '0 14px 32px -6px rgba(25, 81, 220, 0.22), 0 4px 12px rgba(3, 25, 91, 0.04)',
                 border: '2px solid rgba(255, 255, 255, 0.95)'
               }}
             >
@@ -245,7 +205,7 @@ export function LoginPage({ onLoginSuccess }) {
                 letterSpacing: '-0.5px'
               }}
             >
-              Make <span style={{ color: '#0066FF' }}>System</span>
+              Make <span style={{ color: '#1951dc' }}>System</span>
             </h1>
 
             {/* Subtitle with spaced uppercase */}
@@ -361,8 +321,8 @@ export function LoginPage({ onLoginSuccess }) {
                     transition: 'border-color 0.15s, box-shadow 0.15s'
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#0066FF';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 102, 255, 0.14)';
+                    e.target.style.borderColor = '#3269e5';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(115, 169, 251, 0.22)';
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = '#DCE4EE';
@@ -407,8 +367,8 @@ export function LoginPage({ onLoginSuccess }) {
                     transition: 'border-color 0.15s, box-shadow 0.15s'
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#0066FF';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 102, 255, 0.14)';
+                    e.target.style.borderColor = '#3269e5';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(115, 169, 251, 0.22)';
                   }}
                   onBlur={(e) => {
                     e.target.style.borderColor = '#DCE4EE';
@@ -425,7 +385,7 @@ export function LoginPage({ onLoginSuccess }) {
                   width: '100%',
                   marginTop: '8px',
                   padding: '13px 20px',
-                  backgroundColor: '#0066FF',
+                  backgroundColor: '#1951dc',
                   color: '#FFFFFF',
                   border: 'none',
                   borderRadius: '12px',
@@ -436,20 +396,20 @@ export function LoginPage({ onLoginSuccess }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 14px rgba(0, 102, 255, 0.28)',
+                  boxShadow: '0 4px 14px rgba(25, 81, 220, 0.24)',
                   transition: 'background-color 0.15s, transform 0.15s, box-shadow 0.15s',
                   opacity: isLoading ? 0.7 : 1
                 }}
                 onMouseEnter={(e) => {
                   if (!isLoading) {
-                    e.currentTarget.style.backgroundColor = '#0052CC';
-                    e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 102, 255, 0.38)';
+                    e.currentTarget.style.backgroundColor = '#0b2cb1';
+                    e.currentTarget.style.boxShadow = '0 6px 18px rgba(25, 81, 220, 0.32)';
                     e.currentTarget.style.transform = 'translateY(-1px)';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#0066FF';
-                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 102, 255, 0.28)';
+                  e.currentTarget.style.backgroundColor = '#1951dc';
+                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(25, 81, 220, 0.24)';
                   e.currentTarget.style.transform = 'translateY(0)';
                 }}
               >

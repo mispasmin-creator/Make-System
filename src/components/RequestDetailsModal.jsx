@@ -28,6 +28,7 @@ import { WORK_STATUS, STAGES } from '../constants/stages';
 export function RequestDetailsModal({ isOpen, onClose, request, activePage = 'requests' }) {
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState(null);
+  const [copyError, setCopyError] = useState('');
 
   if (!isOpen || !request) return null;
 
@@ -53,13 +54,16 @@ export function RequestDetailsModal({ isOpen, onClose, request, activePage = 're
     (Array.isArray(request.testingHistory) && request.testingHistory.length > 0 && request.testingHistory.slice(-1)[0]?.remarks) ||
     (hasRevision ? request.latestRemarks : null);
 
-  const copyToClipboard = (text, field) => {
+  const copyToClipboard = async (text, field) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => {
-      setCopiedField(null);
-    }, 2000);
+    setCopyError('');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      setCopyError('Copy is unavailable. Select the text to copy it manually.');
+    }
   };
 
   return (
@@ -80,6 +84,7 @@ export function RequestDetailsModal({ isOpen, onClose, request, activePage = 're
       }
     >
       <div className="space-y-4">
+        {copyError && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">{copyError}</p>}
         {/* 1. Horizontal Workflow Step Tracker */}
         <WorkflowStepTracker
           currentStage={request.currentStage}
@@ -207,7 +212,7 @@ export function RequestDetailsModal({ isOpen, onClose, request, activePage = 're
             <span>Timeline & Target Dates</span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className={`grid grid-cols-2 gap-3 ${hasRevision && request.upgradeTargetDate ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
             {/* Target Completion Date */}
             <div className="p-2.5 bg-slate-50/80 border border-slate-100 rounded-xl">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
@@ -219,14 +224,14 @@ export function RequestDetailsModal({ isOpen, onClose, request, activePage = 're
             </div>
 
             {/* Upgrade Target Date (If Revision) */}
-            <div className="p-2.5 bg-purple-50/60 border border-purple-100 rounded-xl">
+            {hasRevision && request.upgradeTargetDate && <div className="p-2.5 bg-purple-50/60 border border-purple-100 rounded-xl">
               <span className="text-[10px] text-purple-700 font-bold uppercase tracking-wider block">
                 Upgrade Target Date
               </span>
               <span className="text-xs font-bold text-purple-900 block mt-0.5">
                 {request.upgradeTargetDate ? formatDisplayDate(request.upgradeTargetDate) : 'Not Revised'}
               </span>
-            </div>
+            </div>}
 
             {/* Hold Extend Date (If Hold) */}
             <div className="p-2.5 bg-rose-50/60 border border-rose-100 rounded-xl">

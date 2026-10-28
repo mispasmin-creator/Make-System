@@ -197,7 +197,7 @@ export function UserFormModal({
             <input
               id="fieldFullName"
               type="text"
-              placeholder="e.g. Ramesh Chandra"
+              placeholder=""
               value={formData.fullName}
               onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
               className={`w-full px-3.5 py-2.5 bg-white border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100/60 focus:border-indigo-400 transition-all shadow-2xs ${
@@ -214,7 +214,7 @@ export function UserFormModal({
             <input
               id="fieldUsername"
               type="text"
-              placeholder="e.g. ramesh"
+              placeholder=""
               value={formData.username}
               onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
               className={`w-full px-3.5 py-2.5 bg-white border rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100/60 focus:border-indigo-400 transition-all shadow-2xs ${
@@ -251,7 +251,7 @@ export function UserFormModal({
             <input
               id="fieldDept"
               type="text"
-              placeholder="e.g. Engineering / Quality"
+              placeholder=""
               value={formData.department}
               onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
               className="w-full px-3.5 py-2.5 bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100/60 focus:border-indigo-400 transition-all shadow-2xs"

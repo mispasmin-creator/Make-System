@@ -5,31 +5,12 @@ import { STAGES } from '../constants/stages';
 const WORKFLOW_STEPS = [
   { id: 'introduce', label: 'Introduce System', stage: STAGES.INTRODUCE },
   { id: 'create', label: 'Create System', stage: STAGES.CREATE },
-  { id: 'testing', label: 'Testing System', stage: STAGES.TESTING },
   { id: 'mis', label: 'Update MIS', stage: STAGES.UPDATE_MIS },
   { id: 'closed', label: 'Closed', stage: STAGES.CLOSED }
 ];
 
-export function WorkflowStepTracker({ currentStage, isHold = false, hasRevision = false, activePage = null }) {
-  // Dynamically include Revise System step if request has revisions or is currently revising
-  const isReviseFlow = hasRevision || currentStage === STAGES.REVISE || activePage === 'revise';
-
-  const steps = isReviseFlow
-    ? [
-        { id: 'introduce', label: 'Introduce System', stage: STAGES.INTRODUCE },
-        { id: 'create', label: 'Create System', stage: STAGES.CREATE },
-        { id: 'testing', label: 'Testing System', stage: STAGES.TESTING },
-        { id: 'revise', label: 'Revise System', stage: STAGES.REVISE },
-        { id: 'mis', label: 'Update MIS', stage: STAGES.UPDATE_MIS },
-        { id: 'closed', label: 'Closed', stage: STAGES.CLOSED }
-      ]
-    : [
-        { id: 'introduce', label: 'Introduce System', stage: STAGES.INTRODUCE },
-        { id: 'create', label: 'Create System', stage: STAGES.CREATE },
-        { id: 'testing', label: 'Testing System', stage: STAGES.TESTING },
-        { id: 'mis', label: 'Update MIS', stage: STAGES.UPDATE_MIS },
-        { id: 'closed', label: 'Closed', stage: STAGES.CLOSED }
-      ];
+export function WorkflowStepTracker({ currentStage, isHold = false }) {
+  const steps = WORKFLOW_STEPS;
 
   // Determine index of current stage
   const getStageIndex = () => {
@@ -39,9 +20,9 @@ export function WorkflowStepTracker({ currentStage, isHold = false, hasRevision 
       case STAGES.CREATE:
         return steps.findIndex(s => s.id === 'create');
       case STAGES.TESTING:
-        return steps.findIndex(s => s.id === 'testing');
+        return steps.findIndex(s => s.id === 'mis');
       case STAGES.REVISE:
-        return steps.findIndex(s => s.id === 'revise');
+        return steps.findIndex(s => s.id === 'create');
       case STAGES.UPDATE_MIS:
         return steps.findIndex(s => s.id === 'mis');
       case STAGES.CLOSED:
@@ -105,11 +86,6 @@ export function WorkflowStepTracker({ currentStage, isHold = false, hasRevision 
                   >
                     {step.label}
                   </span>
-                  {isCurrent && hasRevision && (step.id === 'revise' || step.id === 'create') && (
-                    <span className="block text-[10px] text-rose-600 font-mono font-medium">
-                      Revision Cycle
-                    </span>
-                  )}
                 </div>
               </div>
 

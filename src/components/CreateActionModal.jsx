@@ -113,7 +113,7 @@ export function CreateActionModal({ isOpen, onClose, request, onSubmit }) {
             ) : isDone ? (
               <>
                 <Check className="w-4 h-4" />
-                <span>{request.currentRevisionNo ? 'Complete & Send to Update MIS' : 'Complete & Send to Testing'}</span>
+                <span>Complete &amp; Send to Update MIS</span>
               </>
             ) : isHold ? (
               <>
@@ -340,7 +340,7 @@ export function CreateActionModal({ isOpen, onClose, request, onSubmit }) {
                   <input
                     type="text"
                     id="adminIdInput"
-                    placeholder="e.g. admin or admin@company.com"
+                    placeholder=""
                     value={adminId}
                     onChange={(e) => setAdminId(e.target.value)}
                     className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200/90 rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 shadow-2xs transition-all"

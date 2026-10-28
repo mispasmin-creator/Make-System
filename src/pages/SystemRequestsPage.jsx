@@ -5,7 +5,8 @@ import {
   Search,
   Filter,
   Eye,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
 import { Pagination } from '../components/Pagination';
@@ -48,7 +49,6 @@ export function SystemRequestsPage({
         if (statusFilter === 'hold' && req.workStatus !== 'On Hold') return false;
         if (statusFilter === 'progress' && req.workStatus !== 'In Progress') return false;
         if (statusFilter === 'closed' && req.currentStage !== STAGES.CLOSED) return false;
-        if (statusFilter === 'revise' && !req.currentRevisionNo) return false;
       }
       return true;
     });
@@ -148,7 +148,7 @@ export function SystemRequestsPage({
             }}
           >
             <option value="">All Stages</option>
-            {Object.values(STAGES).map((s) => (
+            {[STAGES.INTRODUCE, STAGES.CREATE, STAGES.UPDATE_MIS, STAGES.CLOSED].map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
@@ -165,7 +165,6 @@ export function SystemRequestsPage({
             <option value="">All Statuses</option>
             <option value="hold">On Hold (Rose)</option>
             <option value="progress">In Progress</option>
-            <option value="revise">Revise System</option>
             <option value="closed">Closed</option>
           </select>
         </div>
@@ -221,9 +220,6 @@ export function SystemRequestsPage({
                 <th className="px-3.5 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
                   Current Status
                 </th>
-                <th className="px-3.5 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
-                  Revision
-                </th>
               </tr>
             </thead>
 
@@ -231,7 +227,7 @@ export function SystemRequestsPage({
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
               {paginatedRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-2">
                       <ClipboardList className="w-8 h-8 text-slate-300" />
                       <span className="font-semibold text-slate-700">No system requests found</span>
@@ -295,13 +291,6 @@ export function SystemRequestsPage({
                         <StatusBadge label={req.currentStatus} value={req.workStatus} />
                       </td>
 
-                      <td className="px-3.5 py-2.5 whitespace-nowrap">
-                        {req.currentRevisionNo ? (
-                          <StatusBadge type="revision" value={req.currentRevisionNo} />
-                        ) : (
-                          <span className="text-slate-300 font-mono text-[11px]">—</span>
-                        )}
-                      </td>
                     </tr>
                   );
                 })

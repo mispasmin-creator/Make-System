@@ -7,7 +7,7 @@ export function SearchableSelect({
   value,
   onChange,
   options = [],
-  placeholder = 'Select...',
+  placeholder = '',
   disabled = false,
   isInvalid = false
 }) {
@@ -64,7 +64,7 @@ export function SearchableSelect({
                 type="text"
                 autoFocus
                 className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 shadow-2xs"
-                placeholder="Search..."
+                placeholder=""
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
