@@ -1403,14 +1403,39 @@ function loginAppUser(payload) {
   var username = String(payload.username || '').trim().toLowerCase();
   var user = fetchAllUsers().filter(function(u) { return u.username === username; })[0];
   if (!user || user.status !== 'Active' || user.password !== String(payload.password || '').trim()) throw new Error('Invalid username/password or inactive account.');
-  var token = Utilities.getUuid() + Utilities.getUuid();
-  CacheService.getScriptCache().put('login:' + token, user.username, 21600);
+  var token = signSessionToken(user.username);
   delete user.password;
   return {user:user, token:token};
 }
 
+// Stateless signed sessions: CacheService entries are evicted early and capped at 6h, which logged users out repeatedly.
+var SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function sessionSecret() {
+  var props = PropertiesService.getScriptProperties();
+  var secret = props.getProperty('SESSION_SECRET');
+  if (!secret) { secret = Utilities.getUuid() + Utilities.getUuid(); props.setProperty('SESSION_SECRET', secret); }
+  return secret;
+}
+
+function signSessionToken(username) {
+  var payload = Utilities.base64EncodeWebSafe(username + '|' + (Date.now() + SESSION_TTL_MS));
+  return payload + '.' + Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, sessionSecret()));
+}
+
+function verifySessionToken(token) {
+  var parts = String(token || '').split('.');
+  if (parts.length !== 2) return '';
+  var expected = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(parts[0], sessionSecret()));
+  if (expected !== parts[1]) return '';
+  var decoded = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString();
+  var cut = decoded.lastIndexOf('|');
+  if (cut < 0 || Number(decoded.slice(cut + 1)) < Date.now()) return '';
+  return decoded.slice(0, cut);
+}
+
 function authorizeAppAction(action, token) {
-  var username = token && CacheService.getScriptCache().get('login:' + token);
+  var username = verifySessionToken(token);
   if (!username) throw new Error('Session expired. Please log in again.');
   var user = fetchAllUsers().filter(function(u) { return u.username === username; })[0];
   if (!user || user.status !== 'Active') throw new Error('Account inactive or removed.');

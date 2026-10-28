@@ -46,7 +46,7 @@ export function IntroduceSystemPage({
           <div>
             <h1 className="text-lg font-bold text-slate-800 leading-tight tracking-tight">Introduce System</h1>
             <p className="text-xs text-slate-500">
-              Initial kickoff scoping and approval before development • <strong>{pendingRequests.length}</strong> pending
+              • <strong>{pendingRequests.length}</strong> pending
             </p>
           </div>
         </div>
@@ -55,11 +55,10 @@ export function IntroduceSystemPage({
         <div className="flex items-center bg-slate-100/80 p-1.5 rounded-xl border border-slate-200/70 text-xs font-semibold">
           <button
             type="button"
-            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-              activeTab === 'pending'
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${activeTab === 'pending'
                 ? 'bg-white text-indigo-700 shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
             onClick={() => {
               setActiveTab('pending');
               setCurrentPage(1);
@@ -69,11 +68,10 @@ export function IntroduceSystemPage({
           </button>
           <button
             type="button"
-            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-              activeTab === 'completed'
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${activeTab === 'completed'
                 ? 'bg-white text-indigo-700 shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
             onClick={() => {
               setActiveTab('completed');
               setCurrentPage(1);

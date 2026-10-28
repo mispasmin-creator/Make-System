@@ -231,6 +231,16 @@ export default function App() {
     showToast('Signed out of Make System.', 'info');
   };
 
+  useEffect(() => {
+    const onExpired = () => {
+      authService.logout();
+      setCurrentUser(null);
+      showToast('Session expired. Please log in again.', 'error');
+    };
+    window.addEventListener('make-system-session-expired', onExpired);
+    return () => window.removeEventListener('make-system-session-expired', onExpired);
+  }, [showToast]);
+
   // Handler: Create Request
   const handleCreateRequest = async (formData) => {
     const res = await dataService.createRequest(formData);
@@ -296,7 +306,7 @@ export default function App() {
       <>
         <LoginPage onLoginSuccess={handleLoginSuccess} />
         {toast && (
-          <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+          <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-6 sm:right-6 z-50 flex flex-col gap-2 pointer-events-none">
             <div className="pointer-events-auto px-4 py-3 bg-white text-slate-800 rounded-2xl shadow-[0_12px_36px_-4px_rgba(15,23,42,0.12)] border border-slate-100 text-xs font-semibold flex items-center gap-3 max-w-md animate-in slide-in-from-bottom-3 duration-200">
               <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
                 toast.type === 'error' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
@@ -314,12 +324,12 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen flex bg-[#f6f8fb] overflow-hidden font-sans select-text">
+    <div className="h-dvh w-full flex bg-[#f6f8fb] overflow-hidden font-sans select-text">
       {/* Sidebar Navigation */}
       <Sidebar
         activePage={activePage}
         onSelectPage={setActivePage}
-        isCollapsed={isSidebarCollapsed}
+        isCollapsed={isSidebarCollapsed && !isMobileOpen}
         counts={counts}
         isMobileOpen={isMobileOpen}
         onCloseMobile={() => setIsMobileOpen(false)}
@@ -331,7 +341,7 @@ export default function App() {
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         <Header
           isSidebarCollapsed={isSidebarCollapsed}
-          onToggleSidebar={() => setIsSidebarCollapsed(prev => !prev)}
+          onToggleSidebar={() => window.matchMedia('(min-width: 1024px)').matches ? setIsSidebarCollapsed(prev => !prev) : setIsMobileOpen(prev => !prev)}
           activeReminders={activeReminders}
           onResetSampleData={handleResetSampleData}
           onNavigateTo={(page) => setActivePage(page)}
@@ -349,7 +359,7 @@ export default function App() {
             <span className="font-semibold">Loading Make System...</span>
           </div>
         ) : (
-          <main className="flex-1 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col">
+          <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
             {/* Stage Access Guard / Router */}
             {activePage === 'admin' ? (
               authService.isAdmin(currentUser) ? (
@@ -378,7 +388,7 @@ export default function App() {
                   />
                 )}
 
-                {activePage === 'technical-new' && (authService.canAccessStage(currentUser, 'technical-new', 'update') ? <TechnicalHelpPage currentUser={currentUser} companyOptions={masterOptions.companies} onCancel={() => setActivePage(getFirstAllowedStage(currentUser))} onCreated={() => setTechnicalRefreshKey(v => v + 1)} /> : <div className="p-6 text-sm text-slate-500">View only. Submission access is not enabled.</div>)}
+                {activePage === 'technical-new' && (authService.canAccessStage(currentUser, 'technical-new', 'update') ? <TechnicalHelpPage currentUser={currentUser} companyOptions={masterOptions.companies} onCreated={() => setTechnicalRefreshKey(v => v + 1)} /> : <div className="p-6 text-sm text-slate-500">View only. Submission access is not enabled.</div>)}
                 {activePage === 'technical-all' && <TechnicalTicketsPage refreshKey={technicalRefreshKey} canSubmit={authService.canAccessStage(currentUser, 'technical-all', 'update')} />}
                 {['repair-system', 'repair-problem'].includes(activePage) && <RepairRecordsPage key={activePage} stage={activePage === 'repair-problem' ? 'repair' : 'approval'} currentUser={currentUser} onNavigate={setActivePage} />}
                 {REPAIR_NAV_ITEMS.filter(item => item.view !== 'records').map(item => activePage === item.id && <RepairSystemPage key={item.id} view={item.view} onNavigate={setActivePage} currentUser={currentUser} companyOptions={masterOptions.companies} />)}
@@ -441,7 +451,7 @@ export default function App() {
 
       {/* Toast Notification Container */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+        <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-6 sm:right-6 z-50 flex flex-col gap-2 pointer-events-none">
           <div
             className="pointer-events-auto px-4 py-3 bg-white text-slate-800 rounded-2xl shadow-[0_12px_36px_-4px_rgba(15,23,42,0.12)] border border-slate-100 text-xs font-semibold flex items-center gap-3 max-w-md animate-in slide-in-from-bottom-3 duration-200"
           >

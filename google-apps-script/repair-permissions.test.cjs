@@ -13,7 +13,10 @@ const sheet = {
     clearContent(){ for(let r=0;r<count;r++)for(let c=0;c<width;c++){grid[row-1+r] ||= [];grid[row-1+r][col-1+c]='';} }
   }; }
 };
-const context = {Utilities:{formatDate:()=> 'today',getUuid:()=>String(++uuid)},CacheService:{getScriptCache:()=>({put:(k,v)=>sessions.set(k,v),get:k=>sessions.get(k)})},PropertiesService:{getScriptProperties:()=>({setProperty(){},getProperty:()=> '1'})}};
+const crypto = require('node:crypto');
+let secret = '';
+const b64 = b => Buffer.from(b).toString('base64url');
+const context = {Date,Utilities:{formatDate:()=> 'today',getUuid:()=>String(++uuid),base64EncodeWebSafe:v=>b64(v),base64DecodeWebSafe:v=>Buffer.from(v,'base64url'),computeHmacSha256Signature:(v,k)=>crypto.createHmac('sha256',k).update(v).digest(),newBlob:bytes=>({getDataAsString:()=>Buffer.from(bytes).toString()})},CacheService:{getScriptCache:()=>({put:(k,v)=>sessions.set(k,v),get:k=>sessions.get(k)})},PropertiesService:{getScriptProperties:()=>({setProperty(k,v){ if(k==='SESSION_SECRET') secret=v; },getProperty:k=>k==='SESSION_SECRET'?secret:'1'})}};
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(`${__dirname}/Code.gs`,'utf8'),context);
 context.getLoginSheet=()=>sheet;
@@ -39,6 +42,9 @@ assert.throws(()=>context.authorizeAppAction('updateUser',login.token),/Only Adm
 assert.throws(()=>context.authorizeAppAction('getTechnicalTickets',login.token),/No access/);
 context.authorizeAppAction('resolveRepairIssue',login.token);
 assert.throws(()=>context.authorizeAppAction('resolveRepairIssue','fake'),/Session expired/);
+assert.throws(()=>context.authorizeAppAction('resolveRepairIssue',login.token.slice(0,-2)+'xx'),/Session expired/);
+const realNow=Date.now; Date.now=()=>realNow()+29*24*3600*1000; context.authorizeAppAction('resolveRepairIssue',login.token);
+Date.now=()=>realNow()+31*24*3600*1000; assert.throws(()=>context.authorizeAppAction('resolveRepairIssue',login.token),/Session expired/); Date.now=realNow;
 grid[1][grid[0].indexOf('Repair System Access')]='No';
 assert.throws(()=>context.authorizeAppAction('resolveRepairIssue',login.token),/denied/);
 assert.throws(()=>context.loginAppUser({username:'worker',password:'wrong'}),/Invalid/);

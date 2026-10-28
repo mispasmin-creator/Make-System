@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ArrowRight, LockKeyhole, UserRound, AlertCircle, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, LockKeyhole, UserRound, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { authService } from '../services/authService';
 
 export function LoginPage({ onLoginSuccess }) {
@@ -7,6 +7,7 @@ export function LoginPage({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -28,408 +29,49 @@ export function LoginPage({ onLoginSuccess }) {
     }
   };
 
+  const field = 'w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100';
+
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        width: '100vw',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#f2f5fc',
-        fontFamily: 'var(--font-sans)',
-        padding: '24px 16px',
-        position: 'relative',
-        overflow: 'hidden',
-        boxSizing: 'border-box'
-      }}
-    >
-      {/* Ambient background blur lighting */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '850px',
-          height: '560px',
-          background: 'radial-gradient(circle, rgba(115, 169, 251, 0.25) 0%, rgba(219, 233, 253, 0.45) 60%, transparent 80%)',
-          filter: 'blur(80px)',
-          transition: 'transform 0.4s ease',
-          pointerEvents: 'none'
-        }}
-      />
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#f2f5fc] px-4 py-6" style={{ fontFamily: 'var(--font-sans)' }}>
+      <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[560px] -translate-x-1/2 -translate-y-1/2 blur-[80px]" style={{ background: 'radial-gradient(circle, rgba(115,169,251,0.30) 0%, rgba(219,233,253,0.45) 60%, transparent 80%)' }} />
 
-      {/* Main Floating 2-Column Card with Cursor-triggered Levitating Float & 3D Tilt */}
-      <div
-        data-cursor-float
-        className="login-floating-card"
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          width: '100%',
-          maxWidth: '880px',
-          minHeight: '480px',
-          borderRadius: '28px',
-        }}
-      >
-        <main
-          style={{
-            position: 'relative',
-            width: '100%',
-            minHeight: '480px',
-            backgroundColor: '#FFFFFF',
-            borderRadius: '28px',
-            border: '1px solid rgba(255, 255, 255, 0.85)',
-            display: 'flex',
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            overflow: 'hidden',
-          }}
-        >
-        {/* Midnight and royal-blue brand visual */}
-        <section
-          style={{
-            flex: '1 1 380px',
-            position: 'relative',
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #f3f7ff 55%, #dbe9fd 100%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '48px 32px',
-            overflow: 'hidden',
-            minHeight: '340px'
-          }}
-        >
-          {/* Smooth layered wave graphics matching screenshot */}
-          <svg
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
-              zIndex: 1
-            }}
-            viewBox="0 0 500 500"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="waveBack" x1="0%" y1="100%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#1951dc" stopOpacity="0.22" />
-                <stop offset="70%" stopColor="#73a9fb" stopOpacity="0.12" />
-                <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="waveMid" x1="0%" y1="100%" x2="70%" y2="20%">
-                <stop offset="0%" stopColor="#1951dc" stopOpacity="0.45" />
-                <stop offset="60%" stopColor="#73a9fb" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#dbe9fd" stopOpacity="0.05" />
-              </linearGradient>
-              <linearGradient id="waveDeep" x1="0%" y1="100%" x2="50%" y2="30%">
-                <stop offset="0%" stopColor="#0b2cb1" stopOpacity="0.75" />
-                <stop offset="50%" stopColor="#1951dc" stopOpacity="0.55" />
-                <stop offset="100%" stopColor="#73a9fb" stopOpacity="0.1" />
-              </linearGradient>
-              <linearGradient id="waveFront" x1="0%" y1="100%" x2="40%" y2="50%">
-                <stop offset="0%" stopColor="#1951dc" stopOpacity="0.9" />
-                <stop offset="100%" stopColor="#73a9fb" stopOpacity="0.35" />
-              </linearGradient>
-            </defs>
-
-            {/* Wave 1: Soft Light Top */}
-            <path
-              d="M 0,500 L 0,220 C 70,200 140,290 250,250 C 350,210 420,130 500,100 L 500,500 Z"
-              fill="url(#waveBack)"
-            />
-            {/* Wave 2: Medium Azure */}
-            <path
-              d="M 0,500 L 0,300 C 90,280 160,370 270,320 C 370,270 430,220 500,190 L 500,500 Z"
-              fill="url(#waveMid)"
-            />
-            {/* Wave 3: Deep Blue Flow */}
-            <path
-              d="M 0,500 L 0,370 C 80,350 160,430 270,380 C 360,330 420,290 500,280 L 500,500 Z"
-              fill="url(#waveDeep)"
-            />
-            {/* Wave 4: Bottom Vibrant Accent */}
-            <path
-              d="M 0,500 L 0,430 C 70,410 140,470 230,440 C 320,410 410,390 500,360 L 500,500 Z"
-              fill="url(#waveFront)"
-            />
-          </svg>
-
-          {/* Centered Brand Mark */}
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 2,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              textAlign: 'center'
-            }}
-          >
-            {/* Make System Official Brand Logo */}
-            <div
-              className="animate-logo-float"
-              style={{
-                width: '86px',
-                height: '86px',
-                borderRadius: '22px',
-                backgroundColor: '#FFFFFF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '14px',
-                marginBottom: '18px',
-                boxShadow: '0 14px 32px -6px rgba(25, 81, 220, 0.22), 0 4px 12px rgba(3, 25, 91, 0.04)',
-                border: '2px solid rgba(255, 255, 255, 0.95)'
-              }}
-            >
-              <img
-                src="/logo.png"
-                alt="Make System Logo"
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-              />
+      <main data-cursor-float className="login-floating-card relative z-10 w-full max-w-[380px] overflow-hidden rounded-3xl border border-white/90 bg-white shadow-[0_24px_60px_-18px_rgba(59,123,242,0.30)]">
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#73a9fb] via-[#4f8df7] to-[#9cc4ff]" />
+        <div className="px-8 pb-8 pt-7">
+          <div className="mb-6 flex flex-col items-center text-center">
+            <div className="animate-logo-float mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white p-2.5 shadow-[0_10px_24px_-6px_rgba(59,123,242,0.30)] ring-1 ring-blue-50">
+              <img src="/logo.png" alt="Make System Logo" className="h-full w-full object-contain" />
             </div>
-
-            {/* Heading */}
-            <h1
-              style={{
-                fontSize: '32px',
-                fontWeight: 800,
-                color: '#0A1A32',
-                margin: '0 0 6px 0',
-                letterSpacing: '-0.5px'
-              }}
-            >
-              Make <span style={{ color: '#1951dc' }}>System</span>
-            </h1>
-
-            {/* Subtitle with spaced uppercase */}
-            <p
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                letterSpacing: '0.26em',
-                color: '#76879E',
-                margin: 0,
-                textTransform: 'uppercase'
-              }}
-            >
-              PLAN &bull; BUILD &bull; TRACK &bull; GROW
-            </p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#2f4468]">Make <span className="text-[#3b7bf2]">System</span></h1>
+            <p className="mt-1 text-xs text-slate-500">Sign in to continue</p>
           </div>
-        </section>
 
-        {/* Right Side: Clean Sign In Form */}
-        <section
-          style={{
-            flex: '1 1 380px',
-            backgroundColor: '#FFFFFF',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            padding: '48px 48px',
-            boxSizing: 'border-box'
-          }}
-        >
-          <div style={{ width: '100%', maxWidth: '340px', margin: '0 auto' }}>
-            {/* Header */}
-            <div style={{ marginBottom: '28px' }}>
-              <h2
-                style={{
-                  fontSize: '28px',
-                  fontWeight: 800,
-                  color: '#0A1A32',
-                  margin: '0 0 6px 0',
-                  letterSpacing: '-0.5px'
-                }}
-              >
-                Sign In
-              </h2>
-              <p
-                style={{
-                  fontSize: '13px',
-                  color: '#76879E',
-                  margin: 0
-                }}
-              >
-                Sign in to your permitted systems and stages
-              </p>
+          {error && (
+            <div role="alert" className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700">
+              <AlertCircle className="mt-px h-4 w-4 shrink-0" />
+              <span>{error}</span>
             </div>
+          )}
 
-            {/* Error Banner */}
-            {error && (
-              <div
-                style={{
-                  marginBottom: '18px',
-                  padding: '10px 14px',
-                  borderRadius: '12px',
-                  backgroundColor: '#FEF2F2',
-                  border: '1px solid #FECACA',
-                  color: '#B91C1C',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}
-              >
-                <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {/* Form Fields */}
-            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Username Field */}
-              <div style={{ position: 'relative', width: '100%' }}>
-                <UserRound
-                  style={{
-                    position: 'absolute',
-                    left: '14px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    width: '18px',
-                    height: '18px',
-                    color: '#8C9BAE',
-                    pointerEvents: 'none'
-                  }}
-                  strokeWidth={1.75}
-                />
-                <input
-                  id="loginUser"
-                  type="text"
-                  required
-                  autoComplete="username"
-                  placeholder="Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    padding: '13px 16px 13px 44px',
-                    border: '1px solid #DCE4EE',
-                    borderRadius: '12px',
-                    fontSize: '14px',
-                    color: '#0A1A32',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    transition: 'border-color 0.15s, box-shadow 0.15s'
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#3269e5';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(115, 169, 251, 0.22)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#DCE4EE';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                />
-              </div>
-
-              {/* Password Field */}
-              <div style={{ position: 'relative', width: '100%' }}>
-                <LockKeyhole
-                  style={{
-                    position: 'absolute',
-                    left: '14px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    width: '18px',
-                    height: '18px',
-                    color: '#8C9BAE',
-                    pointerEvents: 'none'
-                  }}
-                  strokeWidth={1.75}
-                />
-                <input
-                  id="loginPassword"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    padding: '13px 16px 13px 44px',
-                    border: '1px solid #DCE4EE',
-                    borderRadius: '12px',
-                    fontSize: '14px',
-                    color: '#0A1A32',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    transition: 'border-color 0.15s, box-shadow 0.15s'
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#3269e5';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(115, 169, 251, 0.22)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#DCE4EE';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                />
-              </div>
-
-              {/* Login Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                style={{
-                  width: '100%',
-                  marginTop: '8px',
-                  padding: '13px 20px',
-                  backgroundColor: '#1951dc',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '15px',
-                  fontWeight: 700,
-                  cursor: isLoading ? 'default' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 14px rgba(25, 81, 220, 0.24)',
-                  transition: 'background-color 0.15s, transform 0.15s, box-shadow 0.15s',
-                  opacity: isLoading ? 0.7 : 1
-                }}
-                onMouseEnter={(e) => {
-                  if (!isLoading) {
-                    e.currentTarget.style.backgroundColor = '#0b2cb1';
-                    e.currentTarget.style.boxShadow = '0 6px 18px rgba(25, 81, 220, 0.32)';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#1951dc';
-                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(25, 81, 220, 0.24)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 style={{ width: 18, height: 18, animation: 'spin 1s linear infinite' }} />
-                    <span>Signing in...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Login</span>
-                    <ArrowRight style={{ width: 17, height: 17 }} strokeWidth={2.2} />
-                  </>
-                )}
+          <form onSubmit={handleLogin} className="flex flex-col gap-3.5">
+            <div className="relative">
+              <UserRound aria-hidden="true" strokeWidth={1.75} className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" />
+              <input id="loginUser" type="text" required autoFocus autoComplete="username" placeholder="Username" aria-label="Username" value={username} onChange={e => setUsername(e.target.value)} className={field} />
+            </div>
+            <div className="relative">
+              <LockKeyhole aria-hidden="true" strokeWidth={1.75} className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" />
+              <input id="loginPassword" type={showPassword ? 'text' : 'password'} required autoComplete="current-password" placeholder="Password" aria-label="Password" value={password} onChange={e => setPassword(e.target.value)} className={`${field} pr-11`} />
+              <button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition hover:text-slate-700">
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
-            </form>
-          </div>
-        </section>
+            </div>
+            <button type="submit" disabled={isLoading} className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-[#3b7bf2] py-3 text-sm font-bold text-white shadow-[0_6px_16px_rgba(59,123,242,0.30)] transition hover:-translate-y-px hover:bg-[#2f6ae0] disabled:translate-y-0 disabled:opacity-70">
+              {isLoading ? (<><Loader2 className="h-[18px] w-[18px] animate-spin" /><span>Signing in...</span></>) : (<><span>Login</span><ArrowRight className="h-4 w-4" strokeWidth={2.2} /></>)}
+            </button>
+          </form>
+          <p className="mt-5 text-center text-[10px] font-bold uppercase tracking-[0.26em] text-slate-400">Plan &bull; Build &bull; Track &bull; Grow</p>
+        </div>
       </main>
-      </div>
     </div>
   );
 }

@@ -154,12 +154,12 @@ export function Header({
 
   return (
     <>
-      <header className="h-16 bg-white border-b border-slate-100/90 shadow-[0_2px_12px_rgba(15,23,42,0.02)] px-6 flex items-center justify-between sticky top-0 z-30 shrink-0">
-        <div className="flex items-center gap-3.5">
+      <header className="h-14 sm:h-16 bg-white border-b border-slate-100/90 shadow-[0_2px_12px_rgba(59,123,242,0.05)] px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 shrink-0">
+        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="w-9 h-9 rounded-xl border border-slate-200/70 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-50/80 shadow-2xs hover:shadow-xs hover:-translate-y-0.5 transition-all cursor-pointer"
+            className="w-10 h-10 sm:w-9 sm:h-9 shrink-0 rounded-xl border border-slate-200/70 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-50/80 shadow-2xs hover:shadow-xs hover:-translate-y-0.5 transition-all cursor-pointer"
             title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-label="Toggle navigation menu"
           >
@@ -172,23 +172,23 @@ export function Header({
                 <img src="/logo.png" alt="Make System Logo" className="w-full h-full object-contain" />
               </div>
             )}
-            <span className="text-sm font-bold text-slate-800 tracking-tight">Make System</span>
+            <span className="text-sm font-bold text-slate-800 tracking-tight truncate">Make System</span>
           </div>
         </div>
 
         {/* Center / Status Badges */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 shrink-0">
           {/* Fast live sync button */}
           {isConnected && (
             <button
               type="button"
               onClick={onForceSync}
               disabled={isSyncing}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 shadow-2xs hover:shadow-xs hover:-translate-y-0.5 transition-all cursor-pointer disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 max-sm:w-10 max-sm:h-10 max-sm:p-0 rounded-full text-xs font-semibold bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 shadow-2xs hover:shadow-xs hover:-translate-y-0.5 transition-all cursor-pointer disabled:opacity-60"
               title="Click to immediately pull live updates from Google Sheet"
             >
               <RefreshCw className={`w-3 h-3 text-indigo-600 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
+              <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
             </button>
           )}
 

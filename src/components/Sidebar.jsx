@@ -48,14 +48,14 @@ export function Sidebar({
       {/* Mobile Backdrop */}
       {isMobileOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-500/20 backdrop-blur-[2px] z-40 lg:hidden"
           onClick={onCloseMobile}
         />
       )}
 
       <aside
-        className={`premium-sidebar fixed lg:static top-0 bottom-0 left-0 z-40 bg-white border-r border-slate-100/90 shadow-[1px_0_12px_rgba(15,23,42,0.02)] flex flex-col select-none ${
-          isCollapsed ? 'w-16' : 'w-64'
+        className={`premium-sidebar fixed lg:static top-0 bottom-0 left-0 z-40 bg-white border-r border-slate-100/90 shadow-[1px_0_12px_rgba(15,23,42,0.02)] flex flex-col select-none transition-transform duration-200 ease-out ${
+          isCollapsed ? 'w-16' : 'w-64 max-lg:w-72 max-lg:max-w-[85vw]'
         } ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
         aria-label="Main sidebar navigation"
       >

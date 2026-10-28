@@ -70,7 +70,7 @@ export function SystemRequestsPage({
           <div>
             <h1 className="text-lg font-bold text-slate-800 leading-tight tracking-tight">System Requests</h1>
             <p className="text-xs text-slate-500">
-              Master registry of all software requests • <strong>{filteredRequests.length}</strong> record{filteredRequests.length !== 1 ? 's' : ''}
+              • <strong>{filteredRequests.length}</strong> record{filteredRequests.length !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
@@ -242,9 +242,8 @@ export function SystemRequestsPage({
                   return (
                     <tr
                       key={req.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        isHold ? 'bg-rose-50/40' : ''
-                      }`}
+                      className={`hover:bg-slate-50/80 transition-colors ${isHold ? 'bg-rose-50/40' : ''
+                        }`}
                     >
                       {/* Sticky-Left Action Column */}
                       <td className="sticky left-0 bg-white group-hover:bg-slate-50/80 z-10 border-r border-slate-200 px-3 py-2 text-center shadow-xs">

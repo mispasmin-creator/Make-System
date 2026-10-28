@@ -737,6 +737,7 @@ export async function callGoogleAppsScript(action, payload = {}, method = 'POST'
         ? 'Google Sheet response timed out. Please refresh and try again.'
         : 'Google Sheet save response timed out. The save may have completed; refresh records before retrying.');
     }
+    if (/Session expired/i.test(err?.message || '')) window.dispatchEvent(new Event('make-system-session-expired'));
     console.error(`Google Apps Script [${action}] failed:`, err);
     throw err;
   } finally {

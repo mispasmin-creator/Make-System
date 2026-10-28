@@ -75,7 +75,7 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
   const rows = tickets.filter(t => JSON.stringify(t).toLowerCase().includes(q.toLowerCase()));
   return <div className="flex-1 overflow-y-auto p-4 sm:p-6">
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="text-xl font-bold text-slate-800">All Technical Tickets</h1><p className="text-sm text-slate-500">View tickets and submit completed work.</p></div>
+      <div><h1 className="text-xl font-bold text-slate-800">All Technical Tickets</h1><p className="text-sm text-slate-500"></p></div>
       <label className="block w-full sm:w-64">
         <span className="mb-1.5 block text-xs font-semibold text-indigo-800">Search tickets</span>
         <div className="relative">

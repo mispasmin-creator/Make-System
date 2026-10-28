@@ -35,7 +35,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 bg-slate-900/30 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 bg-slate-500/25 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150"
       onClick={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) {
           onClose();
@@ -48,13 +48,13 @@ export function Modal({
       <div
         ref={modalRef}
         data-cursor-float
-        className={`bg-white rounded-2xl shadow-[0_24px_50px_-10px_rgba(15,23,42,0.18)] border border-slate-100 w-full flex flex-col overflow-hidden max-h-[88vh] ${
+        className={`bg-white rounded-t-3xl sm:rounded-2xl shadow-[0_24px_50px_-10px_rgba(59,123,242,0.25)] border border-slate-100 w-full flex flex-col overflow-hidden max-h-[92dvh] sm:max-h-[88vh] ${
           large ? 'max-w-3xl' : 'max-w-xl'
         }`}
         tabIndex={-1}
       >
         {/* Header */}
-        <div className="px-6 py-4.5 border-b border-slate-100/90 flex items-center justify-between bg-white shrink-0">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4.5 border-b border-slate-100/90 flex items-center justify-between bg-white shrink-0">
           <div>
             <h2 id="modal-title" className="text-base font-bold text-slate-800 tracking-tight">
               {title}
@@ -66,7 +66,7 @@ export function Modal({
 
           <button
             type="button"
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 transition-all cursor-pointer"
+            className="w-10 h-10 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 transition-all cursor-pointer"
             onClick={onClose}
             aria-label="Close dialog"
           >
@@ -75,7 +75,7 @@ export function Modal({
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-4 text-slate-700 text-sm">
+        <div className="p-4 sm:p-6 safe-bottom overflow-y-auto space-y-4 text-slate-700 text-sm">
           {children}
         </div>
 
