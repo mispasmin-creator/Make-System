@@ -42,7 +42,7 @@ var FMS_HEADERS = [
 
 var DEFAULT_COMPANIES = ['Pmmpl', 'Rkl', 'Refrasynth', 'Purab', 'Refratech'];
 var DEFAULT_DEVELOPERS = ['Ahitesh Tandon', 'Bhupendra Kumar', 'MD Alauddin'];
-var TECHNICAL_HELP_HEADERS = ['Ticket', 'Request Date (IST)', 'Company', 'Requester', 'Application & Page', 'Problem Summary', 'What Has To Be Changed', 'System / Page URL', 'Assigned To', 'Screenshots / PDF Attachments', 'Helpdesk Ref / Ticket', 'Status', 'Planned', 'Actual', 'Delay', 'Resolved Remark'];
+var TECHNICAL_HELP_HEADERS = ['Ticket', 'Request Date (IST)', 'Company', 'Category', 'Requester', 'Application & Page', 'Problem Summary', 'What Has To Be Changed', 'System / Page URL', 'Assigned To', 'Screenshots / PDF Attachments', 'Helpdesk Ref / Ticket', 'Status', 'Planned', 'Actual', 'Delay', 'Resolved Remark'];
 
 /**
  * Handle HTTP GET Requests
@@ -216,6 +216,14 @@ function getTechnicalHelpSheet() {
   if (sheet.getLastRow() === 0) {
     sheet.getRange(6, 1, 1, TECHNICAL_HELP_HEADERS.length).setValues([TECHNICAL_HELP_HEADERS]).setFontWeight('bold');
     sheet.setFrozenRows(6);
+  } else if (sheet.getLastRow() >= 6) {
+    var existingHeaders = sheet.getRange(6, 1, 1, sheet.getLastColumn()).getValues()[0].map(normalizeHeaderKey);
+    TECHNICAL_HELP_HEADERS.forEach(function(header) {
+      if (existingHeaders.indexOf(normalizeHeaderKey(header)) === -1) {
+        sheet.getRange(6, sheet.getLastColumn() + 1).setValue(header).setFontWeight('bold');
+        existingHeaders.push(normalizeHeaderKey(header));
+      }
+    });
   }
   return sheet;
 }
@@ -234,7 +242,7 @@ function technicalHelpColumns(sheet) {
   var aliases = {
     ticket: ['Ticket No', 'Ticket Number', 'Ticket ID'],
     requestdateist: ['Request Date', 'Created At', 'Timestamp', 'Timestamps'],
-    company: ['Company Name'], requester: ['Requested By', 'Requester Name'],
+    company: ['Company Name'], category: ['Ticket Category', 'Type'], requester: ['Requested By', 'Requester Name'],
     applicationpage: ['Application and Page', 'Application / Page', 'Application'],
     problemsummary: ['Problem Description', 'Problem'],
     whathastobechanged: ['Requested Correction', 'Correction'],
@@ -281,7 +289,7 @@ function fetchTechnicalTickets() {
     if (!ticketNo) return null;
     var date = get('Request Date (IST)');
     var attachments = String(get('Screenshots / PDF Attachments') || '').split(/\r?\n/).filter(function(url) { return /^https?:\/\//i.test(url); }).map(function(url, i) { return { id:String(ticketNo) + '-attachment-' + i, name:'Attachment ' + (i + 1), url:url, driveUrl:url }; });
-    return { id:ticketNo, ticketNo:ticketNo, createdAt:date instanceof Date ? date.toISOString() : String(date || ''), requester:get('Requester'), company:get('Company'), application:get('Application & Page'), url:get('System / Page URL'), problem:get('Problem Summary'), correction:get('What Has To Be Changed'), status:get('Status') || 'Pending', assignedTo:get('Assigned To'), helpTicketNumber:get('Helpdesk Ref / Ticket'), plannedDate:get('Planned'), actualDate:get('Actual'), delay:get('Delay'), resolvedRemark:get('Resolved Remark'), raisedBy:(techMeta[String(ticketNo)] || {}).raisedBy || '', attachments:attachments };
+    return { id:ticketNo, ticketNo:ticketNo, createdAt:date instanceof Date ? date.toISOString() : String(date || ''), requester:get('Requester'), company:get('Company'), category:get('Category'), application:get('Application & Page'), url:get('System / Page URL'), problem:get('Problem Summary'), correction:get('What Has To Be Changed'), status:get('Status') || 'Pending', assignedTo:get('Assigned To'), helpTicketNumber:get('Helpdesk Ref / Ticket'), plannedDate:get('Planned'), actualDate:get('Actual'), delay:get('Delay'), resolvedRemark:get('Resolved Remark'), raisedBy:(techMeta[String(ticketNo)] || {}).raisedBy || '', attachments:attachments };
   }).filter(function(ticket) { return ticket !== null; });
 }
 
@@ -323,7 +331,7 @@ function itResolverNames() {
 }
 
 function handleCreateTechnicalTicket(data) {
-  ['company', 'application', 'sheetPage', 'problem', 'correction'].forEach(function(key) { if (!String(data[key] || '').trim()) throw new Error(key + ' is required.'); });
+  ['company', 'category', 'application', 'sheetPage', 'problem', 'correction'].forEach(function(key) { if (!String(data[key] || '').trim()) throw new Error(key + ' is required.'); });
   if (data.submissionType === 'On Behalf' && !String(data.onBehalfOf || '').trim()) throw new Error('On behalf name and role is required.');
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -358,7 +366,7 @@ function handleCreateTechnicalTicket(data) {
   if (rowNumber > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), rowNumber - sheet.getMaxRows());
   var fields = {
     'Request Date (IST)': now,
-    'Company':data.company, 'Requester':data.submissionType === 'On Behalf' ? data.onBehalfOf : data.requester || '',
+    'Company':data.company, 'Category':data.category, 'Requester':data.submissionType === 'On Behalf' ? data.onBehalfOf : data.requester || '',
     'Application & Page':data.application + ' / ' + data.sheetPage,
     'Problem Summary':data.problem, 'What Has To Be Changed':data.correction,
     'System / Page URL':data.url || '', 'Assigned To':assignedTo,
@@ -370,7 +378,7 @@ function handleCreateTechnicalTicket(data) {
   writeTechnicalHelpCell(sheet, rowNumber, columns, 'Ticket', ticketNo);
   PropertiesService.getScriptProperties().setProperty(TECH_META_PREFIX + ticketNo, JSON.stringify({ raisedBy: String(data.raisedBy || '') }));
   SpreadsheetApp.flush();
-  return { id: ticketNo, ticketNo: ticketNo, createdAt: now.toISOString(), requester:fields.Requester, company:data.company || '', application:fields['Application & Page'], url:data.url || '', problem:data.problem || '', correction:data.correction || '', status:'Pending', assignedTo:assignedTo, helpTicketNumber:data.helpTicketNumber || '', raisedBy:data.raisedBy || '', plannedDate:'', actualDate:'', delay:'' };
+  return { id: ticketNo, ticketNo: ticketNo, createdAt: now.toISOString(), requester:fields.Requester, company:data.company || '', category:data.category || '', application:fields['Application & Page'], url:data.url || '', problem:data.problem || '', correction:data.correction || '', status:'Pending', assignedTo:assignedTo, helpTicketNumber:data.helpTicketNumber || '', raisedBy:data.raisedBy || '', plannedDate:'', actualDate:'', delay:'' };
   } finally { lock.releaseLock(); }
 }
 

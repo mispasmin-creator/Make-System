@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Eye } from 'lucide-react';
 import { getCachedTechnicalTickets, subscribeTechnicalTickets, listTechnicalTickets, submitTechnicalTicket } from '../services/technicalHelpService';
 import { Modal } from '../components/Modal';
+import { TechnicalTicketDetailsModal } from '../components/TechnicalTicketDetailsModal';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -18,6 +19,7 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
   const [submitting, setSubmitting] = useState({});
   const pending = useRef(new Set());
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [viewingTicket, setViewingTicket] = useState(null);
   const [resolvedRemark, setResolvedRemark] = useState('');
   const [remarkError, setRemarkError] = useState('');
 
@@ -86,9 +88,9 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
     </div>
     {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {message && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-    <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Ticket', 'Requester', 'Company', 'Application', 'Problem', 'Assigned To', 'Status', 'Created', 'Actual', 'Action'].map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>
-      {rows.map(t => <tr key={t.ticketNo} className="border-t border-slate-100"><td className="whitespace-nowrap p-3 font-semibold">{t.ticketNo}</td><td className="p-3">{t.requester}</td><td className="p-3">{t.company}</td><td className="p-3">{t.application}</td><td className="max-w-xs p-3">{t.problem}</td><td className="p-3">{t.assignedTo || '—'}</td><td className="p-3">{t.status}</td><td className="whitespace-nowrap p-3">{formatDate(t.createdAt)}</td><td className="whitespace-nowrap p-3">{formatDate(t.actualDate)}</td><td className="p-3">{!canSubmit ? <span className="text-slate-400">View only</span> : <button type="button" aria-label={`Submit ${t.ticketNo}`} disabled={Boolean(t.actualDate) || submitting[t.ticketNo]} onClick={() => submit(t)} className="rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white hover:bg-indigo-700 disabled:cursor-default disabled:bg-slate-100 disabled:text-slate-500">{t.actualDate ? 'Submitted' : submitting[t.ticketNo] ? 'Saving...' : 'Submit'}</button>}</td></tr>)}
-      {!rows.length && <tr><td colSpan={10} className="p-8 text-center text-slate-400">{loading ? 'Loading tickets...' : 'No technical tickets found.'}</td></tr>}
+    <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Ticket', 'Requester', 'Company', 'Category', 'Application', 'Problem', 'What Has To Be Changed', 'Assigned To', 'Status', 'Created', 'Actual', 'Action'].map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>
+      {rows.map(t => <tr key={t.ticketNo} className="border-t border-slate-100"><td className="whitespace-nowrap p-3 font-semibold"><button type="button" onClick={() => setViewingTicket(t)} className="font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer flex items-center gap-1" title="Click to view details"><span>{t.ticketNo}</span></button></td><td className="p-3">{t.requester}</td><td className="p-3">{t.company}</td><td className="p-3">{t.category || '—'}</td><td className="p-3">{t.application}</td><td className="max-w-xs p-3">{t.problem}</td><td className="max-w-xs whitespace-pre-wrap p-3">{t.correction || '—'}</td><td className="p-3">{t.assignedTo || '—'}</td><td className="p-3">{t.status}</td><td className="whitespace-nowrap p-3">{formatDate(t.createdAt)}</td><td className="whitespace-nowrap p-3">{formatDate(t.actualDate)}</td><td className="p-3 whitespace-nowrap"><div className="flex items-center gap-2"><button type="button" onClick={() => setViewingTicket(t)} className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 font-semibold text-xs transition-colors cursor-pointer" title="View details"><Eye className="h-3.5 w-3.5 text-indigo-600" /><span>Details</span></button>{canSubmit && <button type="button" aria-label={`Submit ${t.ticketNo}`} disabled={Boolean(t.actualDate) || submitting[t.ticketNo]} onClick={() => submit(t)} className="rounded-lg bg-indigo-600 px-3 py-1.5 font-semibold text-white hover:bg-indigo-700 disabled:cursor-default disabled:bg-slate-100 disabled:text-slate-500 cursor-pointer">{t.actualDate ? 'Submitted' : submitting[t.ticketNo] ? 'Saving...' : 'Submit'}</button>}</div></td></tr>)}
+      {!rows.length && <tr><td colSpan={12} className="p-8 text-center text-slate-400">{loading ? 'Loading tickets...' : 'No technical tickets found.'}</td></tr>}
     </tbody></table></div>
     <Modal isOpen={Boolean(selectedTicket)} title={`Submit ${selectedTicket?.ticketNo || 'Ticket'}`} onClose={() => { if (!pending.current.has(selectedTicket?.ticketNo)) setSelectedTicket(null); }}>
       <form onSubmit={confirmSubmit} className="space-y-4">
@@ -102,5 +104,6 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
         </div>
       </form>
     </Modal>
+    <TechnicalTicketDetailsModal isOpen={Boolean(viewingTicket)} ticket={viewingTicket} canSubmit={canSubmit} onResolveClick={t => submit(t)} onClose={() => setViewingTicket(null)} />
   </div>;
 }

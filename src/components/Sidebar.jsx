@@ -9,12 +9,14 @@ import {
   Wrench,
   FilePlus2,
   ClipboardCheck,
-  BadgeCheck
+  BadgeCheck,
+  BarChart3
 } from 'lucide-react';
 import { NAV_ITEMS, REPAIR_NAV_ITEMS } from '../constants/stages';
 import { authService } from '../services/authService';
 
 const ICON_MAP = {
+  dashboard: BarChart3,
   requests: ClipboardList,
   introduce: Handshake,
   create: Code2,
@@ -73,8 +75,39 @@ export function Sidebar({
 
         {/* Navigation items */}
         <nav className="p-3 space-y-1.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          {/* Executive DME Dashboard Navigation Button */}
+          {authService.canAccessStage(currentUser, 'dashboard') && (
+            <div className="pb-2 mb-2 border-b border-slate-100">
+              <button
+                type="button"
+                aria-current={activePage === 'dashboard' ? 'page' : undefined}
+                onClick={() => {
+                  onSelectPage('dashboard');
+                  if (onCloseMobile) onCloseMobile();
+                }}
+                title={isCollapsed ? 'Dashboard' : undefined}
+                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs rounded-xl border transition-all duration-150 cursor-pointer ${
+                  activePage === 'dashboard'
+                    ? 'bg-blue-600 text-white shadow-xs border-blue-600 font-bold'
+                    : 'border-slate-200/60 text-slate-700 hover:bg-blue-50/70 hover:text-blue-900 font-bold bg-slate-50/70'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <BarChart3 className={`w-4 h-4 shrink-0 transition-colors ${activePage === 'dashboard' ? 'text-white' : 'text-blue-600'}`} />
+                  {!isCollapsed && <span className="truncate">Dashboard</span>}
+                </div>
+                {!isCollapsed && (
+                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ${activePage === 'dashboard' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                    Overview
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
           {!isCollapsed && visibleNavItems.some(item => ['requests','introduce','create','mis'].includes(item.id)) && <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Make System</div>}
           {visibleNavItems.map((item) => {
+            if (item.id === 'dashboard') return null;
             if (item.id === 'repair-system') return null;
             if (item.id === 'technical-new' || item.id === 'technical-all') return null;
             const isActive = activePage === item.id;

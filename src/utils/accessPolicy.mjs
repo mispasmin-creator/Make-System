@@ -22,6 +22,7 @@ export function normalizeAccess(user) {
 }
 export function hasStageAccess(user, stageId, action = 'view') {
   if (!user || user.status !== 'Active') return false;
+  if (stageId === 'dashboard') return true;
   const access = normalizeAccess(user);
   if (stageId === 'admin') return user.role === 'Admin';
   const id = STAGE_ALIASES[stageId] || stageId;

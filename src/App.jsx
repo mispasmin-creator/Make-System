@@ -21,6 +21,7 @@ import { resetUserCaches, setCacheOwner } from './utils/userCache';
 import { TechnicalTicketsPage } from './pages/TechnicalTicketsPage';
 import { RepairSystemPage } from './pages/RepairSystemPage';
 import { RepairRecordsPage } from './pages/RepairRecordsPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { REPAIR_NAV_ITEMS } from './constants/stages';
 
 import { dataService } from './services/dataService';
@@ -62,6 +63,7 @@ export default function App() {
 
   // Stage label & default helper
   const getStageLabel = useCallback((pageId) => {
+    if (pageId === 'dashboard') return 'DME Dashboard';
     if (pageId === 'admin') return 'Admin Master';
     const found = APP_STAGES.find(s => s.id === pageId);
     return found ? found.label : pageId;
@@ -388,6 +390,15 @@ export default function App() {
               />
             ) : (
               <>
+                {activePage === 'dashboard' && (
+                  <DashboardPage
+                    requests={requests}
+                    masterOptions={masterOptions}
+                    currentUser={currentUser}
+                    onNavigateTo={setActivePage}
+                  />
+                )}
+
                 {activePage === 'requests' && (
                   <SystemRequestsPage
                     requests={requests}

@@ -62,6 +62,7 @@ export const REPAIR_NAV_ITEMS = [
 ];
 
 export const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'bar-chart-3' },
   { id: 'repair-system', label: 'Repair System', icon: 'wrench' },
   { id: 'requests', label: 'System Requests', icon: 'file-text' },
   { id: 'technical-new', label: 'Raise Technical Help', icon: 'life-buoy' },

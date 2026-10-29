@@ -335,3 +335,47 @@ html { -webkit-tap-highlight-color: transparent; }
 }
 
 .safe-bottom { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+
+/* ---------- Professional PDF & Print Media Styling ---------- */
+@media print {
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+  body, html {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .premium-sidebar,
+  header,
+  .print\:hidden {
+    display: none !important;
+  }
+  main, .flex-1 {
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+  section, .rounded-2xl, .rounded-3xl {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+}
