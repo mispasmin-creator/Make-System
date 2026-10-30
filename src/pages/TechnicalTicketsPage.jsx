@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Eye } from 'lucide-react';
 import { getCachedTechnicalTickets, subscribeTechnicalTickets, listTechnicalTickets, submitTechnicalTicket } from '../services/technicalHelpService';
 import { Modal } from '../components/Modal';
@@ -10,8 +10,16 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
 }
 
+function isTicketResolved(t) {
+  if (!t) return false;
+  if (t.actualDate) return true;
+  const s = String(t.status || '').trim().toLowerCase();
+  return s === 'resolved' || s === 'complete' || s === 'completed';
+}
+
 export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
   const [tickets, setTickets] = useState(getCachedTechnicalTickets);
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'complete' | 'all'
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -74,36 +82,219 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
     }
   }
 
-  const rows = tickets.filter(t => JSON.stringify(t).toLowerCase().includes(q.toLowerCase()));
-  return <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="text-xl font-bold text-slate-800">All Technical Tickets</h1><p className="text-sm text-slate-500"></p></div>
-      <label className="block w-full sm:w-64">
-        <span className="mb-1.5 block text-xs font-semibold text-indigo-800">Search tickets</span>
-        <div className="relative">
-          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-600" />
-          <input aria-label="Search tickets" value={q} onChange={e => setQ(e.target.value)} className="w-full rounded-xl border border-indigo-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 shadow-[0_4px_12px_rgba(25,81,220,0.14),0_1px_3px_rgba(25,81,220,0.10)] transition-[border-color,box-shadow] hover:border-indigo-400 hover:shadow-[0_6px_16px_rgba(25,81,220,0.20)] focus:border-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-100" />
+  const pendingTickets = useMemo(() => tickets.filter(t => !isTicketResolved(t)), [tickets]);
+  const completedTickets = useMemo(() => tickets.filter(t => isTicketResolved(t)), [tickets]);
+
+  const currentTabTickets = useMemo(() => {
+    if (activeTab === 'pending') return pendingTickets;
+    if (activeTab === 'complete') return completedTickets;
+    return tickets;
+  }, [activeTab, pendingTickets, completedTickets, tickets]);
+
+  const rows = useMemo(() => {
+    if (!q.trim()) return currentTabTickets;
+    const query = q.toLowerCase();
+    return currentTabTickets.filter(t => JSON.stringify(t).toLowerCase().includes(query));
+  }, [currentTabTickets, q]);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800">All Technical Tickets</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {pendingTickets.length} pending · {completedTickets.length} complete
+            </p>
+          </div>
+
+          {/* Tab Switcher Pills */}
+          <div className="flex items-center bg-slate-100/80 p-1.5 rounded-xl border border-slate-200/70 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setActiveTab('pending')}
+              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'pending'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Pending ({pendingTickets.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('complete')}
+              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'complete'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Complete ({completedTickets.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('all')}
+              className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'all'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              All ({tickets.length})
+            </button>
+          </div>
         </div>
-      </label>
-    </div>
-    {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {message && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-    <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Ticket', 'Requester', 'Company', 'Category', 'Application', 'Problem', 'What Has To Be Changed', 'Assigned To', 'Status', 'Created', 'Actual', 'Action'].map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>
-      {rows.map(t => <tr key={t.ticketNo} className="border-t border-slate-100"><td className="whitespace-nowrap p-3 font-semibold"><button type="button" onClick={() => setViewingTicket(t)} className="font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer flex items-center gap-1" title="Click to view details"><span>{t.ticketNo}</span></button></td><td className="p-3">{t.requester}</td><td className="p-3">{t.company}</td><td className="p-3">{t.category || '—'}</td><td className="p-3">{t.application}</td><td className="max-w-xs p-3">{t.problem}</td><td className="max-w-xs whitespace-pre-wrap p-3">{t.correction || '—'}</td><td className="p-3">{t.assignedTo || '—'}</td><td className="p-3">{t.status}</td><td className="whitespace-nowrap p-3">{formatDate(t.createdAt)}</td><td className="whitespace-nowrap p-3">{formatDate(t.actualDate)}</td><td className="p-3 whitespace-nowrap"><div className="flex items-center gap-2"><button type="button" onClick={() => setViewingTicket(t)} className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 font-semibold text-xs transition-colors cursor-pointer" title="View details"><Eye className="h-3.5 w-3.5 text-indigo-600" /><span>Details</span></button>{canSubmit && <button type="button" aria-label={`Submit ${t.ticketNo}`} disabled={Boolean(t.actualDate) || submitting[t.ticketNo]} onClick={() => submit(t)} className="rounded-lg bg-indigo-600 px-3 py-1.5 font-semibold text-white hover:bg-indigo-700 disabled:cursor-default disabled:bg-slate-100 disabled:text-slate-500 cursor-pointer">{t.actualDate ? 'Submitted' : submitting[t.ticketNo] ? 'Saving...' : 'Submit'}</button>}</div></td></tr>)}
-      {!rows.length && <tr><td colSpan={12} className="p-8 text-center text-slate-400">{loading ? 'Loading tickets...' : 'No technical tickets found.'}</td></tr>}
-    </tbody></table></div>
-    <Modal isOpen={Boolean(selectedTicket)} title={`Submit ${selectedTicket?.ticketNo || 'Ticket'}`} onClose={() => { if (!pending.current.has(selectedTicket?.ticketNo)) setSelectedTicket(null); }}>
-      <form onSubmit={confirmSubmit} className="space-y-4">
-        <label className="block text-xs font-semibold text-slate-700">Resolved Remark <span className="text-red-500">*</span>
-          <textarea autoFocus required rows={4} value={resolvedRemark} disabled={Boolean(submitting[selectedTicket?.ticketNo])} onChange={e => { setResolvedRemark(e.target.value); setRemarkError(''); }} placeholder="Describe how the issue was resolved..." className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+
+        <label className="block w-full sm:w-64">
+          <span className="mb-1.5 block text-xs font-semibold text-indigo-800">Search tickets</span>
+          <div className="relative">
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-600" />
+            <input
+              aria-label="Search tickets"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              className="w-full rounded-xl border border-indigo-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 shadow-[0_4px_12px_rgba(25,81,220,0.14),0_1px_3px_rgba(25,81,220,0.10)] transition-[border-color,box-shadow] hover:border-indigo-400 hover:shadow-[0_6px_16px_rgba(25,81,220,0.20)] focus:border-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-100"
+            />
+          </div>
         </label>
-        {remarkError && <p role="alert" className="text-xs text-red-600">{remarkError}</p>}
-        <div className="flex justify-end gap-2">
-          <button type="button" disabled={Boolean(submitting[selectedTicket?.ticketNo])} onClick={() => setSelectedTicket(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-xs">Cancel</button>
-          <button type="submit" disabled={Boolean(submitting[selectedTicket?.ticketNo])} className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{submitting[selectedTicket?.ticketNo] ? 'Saving...' : 'Submit'}</button>
-        </div>
-      </form>
-    </Modal>
-    <TechnicalTicketDetailsModal isOpen={Boolean(viewingTicket)} ticket={viewingTicket} canSubmit={canSubmit} onResolveClick={t => submit(t)} onClose={() => setViewingTicket(null)} />
-  </div>;
+      </div>
+
+      {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {message && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
+
+      <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-50 text-slate-500">
+            <tr>
+              {['Ticket', 'Requester', 'Company', 'Category', 'Application', 'Problem', 'What Has To Be Changed', 'Assigned To', 'Status', 'Created', 'Actual', 'Action'].map(h => (
+                <th key={h} className="whitespace-nowrap p-3">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(t => (
+              <tr key={t.ticketNo} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
+                <td className="whitespace-nowrap p-3 font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setViewingTicket(t)}
+                    className="font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer flex items-center gap-1"
+                    title="Click to view details"
+                  >
+                    <span>{t.ticketNo}</span>
+                  </button>
+                </td>
+                <td className="p-3">{t.requester}</td>
+                <td className="p-3">{t.company}</td>
+                <td className="p-3">{t.category || '—'}</td>
+                <td className="p-3">{t.application}</td>
+                <td className="max-w-xs p-3">{t.problem}</td>
+                <td className="max-w-xs whitespace-pre-wrap p-3">{t.correction || '—'}</td>
+                <td className="p-3">{t.assignedTo || '—'}</td>
+                <td className="p-3">
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                    isTicketResolved(t)
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    {t.status || (isTicketResolved(t) ? 'Resolved' : 'Pending')}
+                  </span>
+                </td>
+                <td className="whitespace-nowrap p-3">{formatDate(t.createdAt)}</td>
+                <td className="whitespace-nowrap p-3">{formatDate(t.actualDate)}</td>
+                <td className="p-3 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setViewingTicket(t)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 font-semibold text-xs transition-colors cursor-pointer"
+                      title="View details"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>Details</span>
+                    </button>
+                    {canSubmit && (
+                      <button
+                        type="button"
+                        aria-label={`Submit ${t.ticketNo}`}
+                        disabled={Boolean(t.actualDate) || submitting[t.ticketNo]}
+                        onClick={() => submit(t)}
+                        className="rounded-lg bg-indigo-600 px-3 py-1.5 font-semibold text-white hover:bg-indigo-700 disabled:cursor-default disabled:bg-slate-100 disabled:text-slate-500 cursor-pointer"
+                      >
+                        {t.actualDate ? 'Submitted' : submitting[t.ticketNo] ? 'Saving...' : 'Submit'}
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr>
+                <td colSpan={12} className="p-8 text-center text-slate-400">
+                  {loading
+                    ? 'Loading tickets...'
+                    : q
+                      ? `No tickets match "${q}".`
+                      : activeTab === 'pending'
+                        ? 'No pending technical tickets.'
+                        : activeTab === 'complete'
+                          ? 'No completed technical tickets.'
+                          : 'No technical tickets found.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Modal
+        isOpen={Boolean(selectedTicket)}
+        title={`Submit ${selectedTicket?.ticketNo || 'Ticket'}`}
+        onClose={() => { if (!pending.current.has(selectedTicket?.ticketNo)) setSelectedTicket(null); }}
+      >
+        <form onSubmit={confirmSubmit} className="space-y-4">
+          <label className="block text-xs font-semibold text-slate-700">
+            Resolved Remark <span className="text-red-500">*</span>
+            <textarea
+              autoFocus
+              required
+              rows={4}
+              value={resolvedRemark}
+              disabled={Boolean(submitting[selectedTicket?.ticketNo])}
+              onChange={e => { setResolvedRemark(e.target.value); setRemarkError(''); }}
+              placeholder="Describe how the issue was resolved..."
+              className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+          </label>
+          {remarkError && <p role="alert" className="text-xs text-red-600">{remarkError}</p>}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              disabled={Boolean(submitting[selectedTicket?.ticketNo])}
+              onClick={() => setSelectedTicket(null)}
+              className="rounded-lg border border-slate-200 px-4 py-2 text-xs cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={Boolean(submitting[selectedTicket?.ticketNo])}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50 cursor-pointer"
+            >
+              {submitting[selectedTicket?.ticketNo] ? 'Saving...' : 'Submit'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <TechnicalTicketDetailsModal
+        isOpen={Boolean(viewingTicket)}
+        ticket={viewingTicket}
+        canSubmit={canSubmit}
+        onResolveClick={t => submit(t)}
+        onClose={() => setViewingTicket(null)}
+      />
+    </div>
+  );
 }
