@@ -324,13 +324,6 @@ html { -webkit-tap-highlight-color: transparent; }
 }
 
 @media (max-width: 639px) {
-  /* Tables tagged cards-on-phone become stacked cards: no sideways scrolling. */
-  .cards-on-phone thead { display: none; }
-  .cards-on-phone, .cards-on-phone tbody { display: block; }
-  .cards-on-phone tbody tr { display: block; margin: 0.75rem; padding: 0.5rem 0.25rem; border: 1px solid #e3ebf8 !important; border-radius: 1rem; background: #fff; box-shadow: 0 4px 14px -8px rgb(59 123 242 / 22%); }
-  .cards-on-phone td[data-label] { display: flex; justify-content: space-between; gap: 1rem; padding: 0.4rem 0.75rem; text-align: right; max-width: none; min-width: 0 !important; word-break: break-word; }
-  .cards-on-phone td[data-label]::before { content: attr(data-label); flex-shrink: 0; font-weight: 700; color: #7a8cab; text-align: left; }
-  .cards-on-phone td[data-empty] { display: block; text-align: center; }
   .mobile-stack { flex-direction: column; align-items: stretch; }
 }
 

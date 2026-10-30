@@ -15,16 +15,17 @@ export function Pagination({
   if (totalItems === 0) return null;
 
   return (
-    <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50/60 border-t border-slate-100/90 text-xs text-slate-600 select-none">
+    <div className="hidden md:flex items-center justify-between gap-3 px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 text-xs text-slate-600 select-none shrink-0">
+      {/* Entries Info & Rows Per Page */}
       <div className="flex items-center gap-3">
-        <span>
+        <span className="text-slate-500">
           Showing <strong className="font-semibold text-slate-800">{startItem}</strong> to{' '}
           <strong className="font-semibold text-slate-800">{endItem}</strong> of{' '}
-          <strong className="font-semibold text-slate-800">{totalItems}</strong> entries
+          <strong className="font-semibold text-slate-800">{totalItems}</strong>
         </span>
 
         {onPageSizeChange && (
-          <div className="flex items-center gap-1.5 ml-2 border-l border-slate-200/70 pl-3">
+          <div className="flex items-center gap-1.5 border-l border-slate-200/80 pl-3">
             <span className="text-slate-400 text-[11px] uppercase tracking-wider font-semibold">Rows:</span>
             <select
               value={pageSize}
@@ -40,18 +41,20 @@ export function Pagination({
         )}
       </div>
 
-      <div className="flex items-center gap-1.5">
+      {/* Navigation Buttons & Page Indicators */}
+      <div className="flex items-center justify-end gap-1.5">
         <button
           type="button"
           disabled={currentPage <= 1}
           onClick={() => onPageChange(currentPage - 1)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
+          className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shadow-2xs hover:shadow-xs active:scale-95"
           aria-label="Previous Page"
         >
           <ChevronLeft className="w-3.5 h-3.5" />
           <span>Prev</span>
         </button>
 
+        {/* Full Page Numbers on Tablets / Desktops */}
         <div className="flex items-center gap-1 mx-1">
           {Array.from({ length: totalPages }, (_, i) => i + 1)
             .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
@@ -83,7 +86,7 @@ export function Pagination({
           type="button"
           disabled={currentPage >= totalPages}
           onClick={() => onPageChange(currentPage + 1)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
+          className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shadow-2xs hover:shadow-xs active:scale-95"
           aria-label="Next Page"
         >
           <span>Next</span>

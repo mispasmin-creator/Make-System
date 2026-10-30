@@ -134,9 +134,124 @@ export function RepairSystemPage({ currentUser, companyOptions = [], view = 'ove
       {mode === 'demo' && <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Development demo mode — browser-only data. Live Google Sheets integration is not configured.</p>}
       {error && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {notice && <p role="status" className="mb-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-      {tab === 'overview' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(summary).map(([label, count]) => <div key={label} className="rounded-xl border border-slate-100 bg-white p-5 shadow-xs"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-3xl font-bold text-indigo-700">{count}</p></div>)}</div> : tab === 'new' ? (() => { const rows = issues.filter(i => !filters.search || [i.serial, i.requester, i.company, i.description, i.location].join(' ').toLowerCase().includes(filters.search.toLowerCase())); return <div className="rounded-xl border border-slate-100 bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-800">History <span className="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-600">{rows.length}</span></h2><div className="relative w-full sm:w-64"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input aria-label="Search history" value={filters.search} onChange={e => filter('search', e.target.value)} placeholder="Search serial, requester, issue..." className="w-full rounded-xl border border-slate-200/80 bg-slate-50/70 py-2 pl-9 pr-3 text-xs" /></div></div><div className="overflow-x-auto"><table className="cards-on-phone w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Issue', 'Requester', 'Company', 'Things Not Working', 'Location', 'Image', 'Where Have To Solve', 'Assigned Developer', 'Status', 'Request Date', 'Action'].map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>{rows.slice((Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize))) - 1) * pageSize).slice(0, pageSize).map(issue => <tr key={issue.id} className="border-t border-slate-100"><td data-label="Issue" className="whitespace-nowrap p-3 font-semibold">{issue.serial}</td><td data-label="Requester" className="p-3">{issue.requester}</td><td data-label="Company" className="p-3">{issue.company}</td><td data-label="Problem" className="min-w-48 whitespace-pre-wrap p-3">{issue.description}</td><td data-label="Location" className="p-3">{issue.location || '—'}</td><td data-label="Image" className="p-3"><ImageAttachmentCell attachments={issue.attachments} showAsTd={false} /></td><td data-label="Where To Solve" className="p-3">{issue.assessment?.whereToSolve || '—'}</td><td data-label="Assigned Developer" className="p-3">{issue.assessment?.assignedDeveloper || '—'}</td><td data-label="Status" className="p-3">{overallStatus(issue)}</td><td data-label="Request Date" className="whitespace-nowrap p-3">{datetime(issue.createdAt)}</td><td data-label="Action" className="p-3"><button type="button" onClick={() => viewDetails(issue)} aria-label={`View ${issue.serial}`} className="rounded p-2 text-indigo-600 hover:bg-indigo-50"><Eye className="h-4 w-4" /></button></td></tr>)}{!rows.length && <tr><td colSpan={11} className="p-10 text-center text-slate-400">No issue requests yet.</td></tr>}</tbody></table></div><Pagination currentPage={Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize)))} totalItems={rows.length} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} /></div>; })() : <>
+      {tab === 'overview' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(summary).map(([label, count]) => <div key={label} className="rounded-xl border border-slate-100 bg-white p-5 shadow-xs"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-3xl font-bold text-indigo-700">{count}</p></div>)}</div> : tab === 'new' ? (() => { const rows = issues.filter(i => !filters.search || [i.serial, i.requester, i.company, i.description, i.location].join(' ').toLowerCase().includes(filters.search.toLowerCase())); return <div className="rounded-xl border border-slate-100 bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-800">History <span className="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-600">{rows.length}</span></h2><div className="relative w-full sm:w-64"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input aria-label="Search history" value={filters.search} onChange={e => filter('search', e.target.value)} placeholder="Search serial, requester, issue..." className="w-full rounded-xl border border-slate-200/80 bg-slate-50/70 py-2 pl-9 pr-3 text-xs" /></div></div>
+      {/* MOBILE SLIM HORIZONTAL ROWS (md:hidden) */}
+      <div className="md:hidden divide-y divide-slate-100 bg-white">
+        {!rows.length ? (
+          <div className="p-8 text-center text-slate-400">No issue requests yet.</div>
+        ) : (
+          rows.map(issue => (
+            <div
+              key={issue.id}
+              onClick={() => viewDetails(issue)}
+              className="px-3 py-2.5 hover:bg-slate-50/80 active:bg-slate-100/70 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <span className="font-mono font-bold text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg shrink-0">
+                  {issue.serial}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-slate-800 truncate leading-snug">
+                      {issue.description || 'Issue Request'}
+                    </h4>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 bg-slate-100 text-slate-700">
+                      {overallStatus(issue)}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1.5">
+                    <span className="font-medium text-slate-700 truncate">{issue.requester}</span>
+                    <span>•</span>
+                    <span className="truncate">{issue.company}</span>
+                    {issue.location && (
+                      <>
+                        <span>•</span>
+                        <span className="text-slate-400 truncate">{issue.location}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="shrink-0 flex items-center">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    viewDetails(issue);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 active:scale-95 transition-all whitespace-nowrap cursor-pointer inline-flex items-center gap-1"
+                >
+                  <Eye className="w-3 h-3 text-indigo-600" />
+                  <span>Details</span>
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* DESKTOP DATA TABLE (hidden md:block) */}
+      <div className="hidden md:block overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Issue', 'Requester', 'Company', 'Things Not Working', 'Location', 'Image', 'Where Have To Solve', 'Assigned Developer', 'Status', 'Request Date', 'Action'].map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>{rows.slice((Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize))) - 1) * pageSize).slice(0, pageSize).map(issue => <tr key={issue.id} className="border-t border-slate-100"><td className="whitespace-nowrap p-3 font-semibold">{issue.serial}</td><td className="p-3">{issue.requester}</td><td className="p-3">{issue.company}</td><td className="min-w-48 whitespace-pre-wrap p-3">{issue.description}</td><td className="p-3">{issue.location || '—'}</td><td className="p-3"><ImageAttachmentCell attachments={issue.attachments} showAsTd={false} /></td><td className="p-3">{issue.assessment?.whereToSolve || '—'}</td><td className="p-3">{issue.assessment?.assignedDeveloper || '—'}</td><td className="p-3">{overallStatus(issue)}</td><td className="whitespace-nowrap p-3">{datetime(issue.createdAt)}</td><td className="p-3"><button type="button" onClick={() => viewDetails(issue)} aria-label={`View ${issue.serial}`} className="rounded p-2 text-indigo-600 hover:bg-indigo-50"><Eye className="h-4 w-4" /></button></td></tr>)}{!rows.length && <tr><td colSpan={11} className="p-10 text-center text-slate-400">No issue requests yet.</td></tr>}</tbody></table></div><Pagination currentPage={Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize)))} totalItems={rows.length} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} /></div>; })() : <>
         <div className="mb-4 grid gap-3 rounded-xl border border-slate-100 bg-white p-4 sm:grid-cols-3 xl:grid-cols-6"><Field label="Search"><input value={filters.search} onChange={e => filter('search', e.target.value)} placeholder="Serial, requester, issue..." className={control} /></Field><Field label="Company"><select value={filters.company} onChange={e => filter('company', e.target.value)} className={control}><option value="">All companies</option>{companies.map(c => <option key={c}>{c}</option>)}</select></Field><Field label="Overall Status"><select value={filters.status} onChange={e => filter('status', e.target.value)} className={control}><option value="">All statuses</option>{OVERALL.map(s => <option key={s}>{s}</option>)}</select></Field><Field label="Date field (IST)"><select value={filters.dateField} onChange={e => filter('dateField', e.target.value)} className={control}>{[['createdAt', 'Request Date'], ['approval.planned', 'Approval Planned'], ['approval.actual', 'Approval Actual'], ['repair.planned', 'Repair Planned'], ['repair.actual', 'Repair Actual'], ['management.planned', 'Management Planned'], ['management.actual', 'Management Actual']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field><Field label="From"><input type="date" value={filters.from} onChange={e => filter('from', e.target.value)} className={control} /></Field><Field label="To"><input type="date" value={filters.to} min={filters.from || undefined} onChange={e => filter('to', e.target.value)} className={control} /></Field><button type="button" onClick={() => { setFilters({ search: '', company: '', status: '', dateField: 'createdAt', from: '', to: '' }); setPage(1); }} className="text-left text-xs text-indigo-600">Clear filters</button></div>
-        <div className="overflow-hidden rounded-xl border border-slate-100 bg-white"><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{(tab === 'mis' ? ['Issue', 'Requester', 'Company', 'Stage', 'Responsible Role', 'Planned', 'Actual', 'Delay / Due in', 'Status'] : ['Issue', 'Requester', 'Company', 'Things Not Working', 'Location', 'Where Have To Solve', ...(tab === 'management' ? ['Repair Remarks', 'Repair Completed'] : []), 'Planned', 'Status', 'Delay / Due in', 'Action']).map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>
+        <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
+          {/* MOBILE SLIM HORIZONTAL ROWS (md:hidden) */}
+          <div className="md:hidden divide-y divide-slate-100 bg-white">
+            {tab === 'mis' ? (
+              !mis.length ? <div className="p-8 text-center text-slate-400">No matching issues.</div> : (
+                mis.map(row => (
+                  <div key={row.id} className="px-3 py-2.5 flex items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <span className="font-mono font-bold text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg shrink-0">{row.serial}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-bold text-slate-800 truncate">{row.stage}</h4>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 bg-slate-100 text-slate-700">{row.status}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate mt-0.5">{row.requester} • {row.company} • {row.role}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )
+            ) : (
+              !filtered.length ? <div className="p-8 text-center text-slate-400">No matching issues. Submit a new issue to begin.</div> : (
+                filtered.map(issue => {
+                  const stage = selectedStage || REPAIR_STAGES.find(s => stageState(issue, s.key, now).status !== 'Completed' && stageState(issue, s.key, now).applicable) || REPAIR_STAGES[2];
+                  const state = stageState(issue, stage.key, now);
+                  const canAct = selectedStage && canRepairAction(currentUser, permissionAction[tab]);
+                  return (
+                    <div key={issue.id} onClick={() => viewDetails(issue)} className="px-3 py-2.5 hover:bg-slate-50/80 active:bg-slate-100/70 flex items-center justify-between gap-2.5 transition-colors cursor-pointer">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <span className="font-mono font-bold text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg shrink-0">{issue.serial}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-xs font-bold text-slate-800 truncate">{issue.description || 'Issue'}</h4>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 bg-slate-100 text-slate-700">{selectedStage ? state.status : overallStatus(issue)}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate mt-0.5">{issue.requester} • {issue.company}{issue.location ? ` • ${issue.location}` : ''}</div>
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        {canAct ? (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); openAction(issue, tab); }} className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs active:scale-95 whitespace-nowrap cursor-pointer">
+                            {actionLabels[tab]}
+                          </button>
+                        ) : (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); viewDetails(issue); }} className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 active:scale-95 whitespace-nowrap cursor-pointer inline-flex items-center gap-1">
+                            <Eye className="w-3 h-3 text-indigo-600" />
+                            <span>Details</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )
+            )}
+          </div>
+
+          {/* DESKTOP DATA TABLE (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{(tab === 'mis' ? ['Issue', 'Requester', 'Company', 'Stage', 'Responsible Role', 'Planned', 'Actual', 'Delay / Due in', 'Status'] : ['Issue', 'Requester', 'Company', 'Things Not Working', 'Location', 'Where Have To Solve', ...(tab === 'management' ? ['Repair Remarks', 'Repair Completed'] : []), 'Planned', 'Status', 'Delay / Due in', 'Action']).map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>
           {tab === 'mis' ? mis.slice(start, start + pageSize).map(row => <tr key={row.id} className="border-t border-slate-100">{[row.serial, row.requester, row.company, row.stage, row.role, datetime(row.planned), datetime(row.actual), delayText(row), row.status].map((v, i) => <td key={i} className="p-3">{v}</td>)}</tr>) : filtered.slice(start, start + pageSize).map(issue => {
             const stage = selectedStage || REPAIR_STAGES.find(s => stageState(issue, s.key, now).status !== 'Completed' && stageState(issue, s.key, now).applicable) || REPAIR_STAGES[2];
             const state = stageState(issue, stage.key, now);

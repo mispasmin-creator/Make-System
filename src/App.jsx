@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
+import { MobileBottomDock } from './components/MobileBottomDock';
+import { MobileSystemHub } from './components/MobileSystemHub';
 import { NewRequestModal } from './components/NewRequestModal';
 import { RequestDetailsModal } from './components/RequestDetailsModal';
 
@@ -76,17 +78,29 @@ export default function App() {
     return allowed ? ({ 'repair-approval':'repair-system', 'repair-work':'repair-problem' }[allowed.id] || allowed.id) : 'requests';
   }, []);
 
-  // Fetch initial fresh data in 1 single fast roundtrip
+  // Fetch initial fresh data in parallel across all 3 systems
   const loadData = useCallback(async () => {
     try {
       const user = authService.getCurrentUser();
+      if (!user) return;
       const makeAccess = SYSTEMS[0].stages.some(id => authService.canAccessStage(user, id));
-      const data = makeAccess ? await dataService.loadAllData() : { masterOptions:await dataService.getMasterOptions() };
-      if (data.requests) setRequests(data.requests);
-      if (data.masterOptions) setMasterOptions(data.masterOptions);
-      if (data.nextRequestNo) setNextRequestNo(data.nextRequestNo);
-      if (data.users && data.users.length > 0) {
-        authService.syncUsersFromSheet(data.users);
+      const repairAccess = SYSTEMS[2].stages.some(id => authService.canAccessStage(user, id));
+      const techAccess = authService.canAccessStage(user, 'technical-all') || authService.canAccessStage(user, 'technical-new');
+
+      const [makeResult] = await Promise.allSettled([
+        makeAccess ? dataService.loadAllData() : dataService.getMasterOptions().then(m => ({ masterOptions: m })),
+        repairAccess && getRepairMode() !== 'unconfigured' ? repairService.listIssues() : Promise.resolve(),
+        techAccess ? listTechnicalTickets() : Promise.resolve()
+      ]);
+
+      if (makeResult.status === 'fulfilled' && makeResult.value) {
+        const data = makeResult.value;
+        if (data.requests) setRequests(data.requests);
+        if (data.masterOptions) setMasterOptions(data.masterOptions);
+        if (data.nextRequestNo) setNextRequestNo(data.nextRequestNo);
+        if (data.users && data.users.length > 0) {
+          authService.syncUsersFromSheet(data.users);
+        }
       }
     } catch (err) {
       console.warn('Background data sync check:', err);
@@ -364,6 +378,16 @@ export default function App() {
           onLogout={handleLogout}
           isSyncing={isSyncing}
           onForceSync={handleForceSync}
+          onOpenNewRequest={() => setIsNewRequestModalOpen(true)}
+        />
+
+        {/* Mobile Fintech Hero Card & 3-System Switcher Hub */}
+        <MobileSystemHub
+          activePage={activePage}
+          onSelectPage={setActivePage}
+          counts={counts}
+          onOpenNewRequest={() => setIsNewRequestModalOpen(true)}
+          currentUser={currentUser}
         />
 
         {isLoading ? (
@@ -372,7 +396,7 @@ export default function App() {
             <span className="font-semibold">Loading Make System...</span>
           </div>
         ) : (
-          <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          <main className="flex-1 min-h-0 overflow-hidden flex flex-col pb-20 lg:pb-0">
             {/* Stage Access Guard / Router */}
             {activePage === 'admin' ? (
               authService.isAdmin(currentUser) ? (
@@ -448,6 +472,14 @@ export default function App() {
           </main>
         )}
       </div>
+
+      {/* Mobile Floating Navigation Dock (Reference App Style Bottom Bar) */}
+      <MobileBottomDock
+        activePage={activePage}
+        onSelectPage={setActivePage}
+        onOpenSidebar={() => setIsMobileOpen(true)}
+        currentUser={currentUser}
+      />
 
       {/* Global New System Request Modal */}
       {isNewRequestModalOpen && (

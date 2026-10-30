@@ -41,7 +41,16 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
       try {
         const data = await listTechnicalTickets();
         if (active) { setTickets(data); setError(''); }
-      } catch (err) { if (active) setError(err.message || 'Unable to sync tickets.'); }
+      } catch (err) {
+        if (active) {
+          setTickets(prev => {
+            if (!prev || prev.length === 0) {
+              setError(err.message || 'Unable to sync tickets.');
+            }
+            return prev;
+          });
+        }
+      }
       finally { refreshing = false; if (active) setLoading(false); }
     }
     refresh();
@@ -163,7 +172,100 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
       {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {message && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white">
+      {/* MOBILE SLIM HORIZONTAL ROWS (md:hidden) */}
+      <div className="md:hidden divide-y divide-slate-100 bg-white rounded-2xl border border-slate-200/70 overflow-hidden mb-4 shadow-xs">
+        {rows.map(t => {
+          const resolved = isTicketResolved(t);
+          return (
+            <div
+              key={t.ticketNo}
+              onClick={() => setViewingTicket(t)}
+              className="px-3 py-2.5 hover:bg-slate-50/80 active:bg-slate-100/70 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
+            >
+              {/* Left: Ticket No & Info */}
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <span className="font-mono font-bold text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg shrink-0">
+                  {t.ticketNo}
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  {/* Line 1: Problem / Subject + Status Badge */}
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-slate-800 truncate leading-snug">
+                      {t.problem || t.application || 'Ticket Request'}
+                    </h4>
+                    <span
+                      className={`px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 ${
+                        resolved
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {t.status || (resolved ? 'Resolved' : 'Pending')}
+                    </span>
+                  </div>
+
+                  {/* Line 2: Requester • Company • Assigned To */}
+                  <div className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1.5">
+                    <span className="font-medium text-slate-700 truncate">{t.requester || '—'}</span>
+                    <span>•</span>
+                    <span className="truncate">{t.company}</span>
+                    <span>•</span>
+                    <span className="text-indigo-600 truncate font-medium">{t.assignedTo || 'Unassigned'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Action or Details Button */}
+              <div className="shrink-0 flex items-center">
+                {!resolved && canSubmit ? (
+                  <button
+                    type="button"
+                    aria-label={`Submit ${t.ticketNo}`}
+                    disabled={Boolean(t.actualDate) || submitting[t.ticketNo]}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      submit(t);
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs active:scale-95 disabled:opacity-50 transition-all whitespace-nowrap cursor-pointer"
+                  >
+                    {t.actualDate ? 'Done' : submitting[t.ticketNo] ? 'Saving...' : 'Resolve'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewingTicket(t);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 active:scale-95 transition-all whitespace-nowrap cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <Eye className="w-3 h-3 text-indigo-600" />
+                    <span>Details</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {!rows.length && (
+          <div className="p-8 text-center text-slate-400">
+            {loading
+              ? 'Loading tickets...'
+              : q
+                ? `No tickets match "${q}".`
+                : activeTab === 'pending'
+                  ? 'No pending technical tickets.'
+                  : activeTab === 'complete'
+                    ? 'No completed technical tickets.'
+                    : 'No technical tickets found.'}
+          </div>
+        )}
+      </div>
+
+      {/* DESKTOP DATA TABLE (hidden on mobile) */}
+      <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-100 bg-white">
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-50 text-slate-500">
             <tr>

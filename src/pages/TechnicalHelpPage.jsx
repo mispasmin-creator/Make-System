@@ -77,9 +77,62 @@ const field = (name, label, _placeholder, required = true, textarea = false) => 
     {message && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">{message}</p>}
     <section className="rounded-lg border border-slate-200 bg-white shadow-xs"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-800">Resolved History <span className="ml-2 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-600">{rows.length}</span></h2><div className="relative w-full sm:w-64"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input aria-label="Search history" placeholder="Search tickets..." value={q} onChange={e => setQ(e.target.value)} className="w-full rounded-md border border-slate-200 py-2 pl-9 pr-3 text-xs focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" /></div></div>
       {historyError && <p role="alert" className="m-4 rounded-lg bg-red-50 p-3 text-xs text-red-700">{historyError}</p>}
-        <div className="overflow-x-auto"><table className="cards-on-phone w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Ticket', 'Requester', 'Company', 'Category', 'Application', 'Problem', 'What Has To Be Changed', 'Status', 'Created', 'Resolved', 'Action'].map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>
-         {rows.map(t => <tr key={t.ticketNo} className="border-t border-slate-100"><td data-label="Ticket" className="whitespace-nowrap p-3 font-semibold text-blue-700"><button type="button" onClick={() => setViewingTicket(t)} className="font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer flex items-center gap-1" title="Click to view details"><span>{t.ticketNo}</span></button></td><td data-label="Requester" className="p-3">{t.onBehalfOf ? `${t.onBehalfOf} (by ${t.requester})` : t.requester}</td><td data-label="Company" className="p-3">{t.company}</td><td data-label="Category" className="p-3">{t.category || '—'}</td><td data-label="Application" className="p-3">{t.application}</td><td data-label="Problem" className="max-w-xs whitespace-pre-wrap p-3">{t.problem}</td><td data-label="What Has To Be Changed" className="max-w-xs whitespace-pre-wrap p-3">{t.correction || '—'}</td><td data-label="Status" className="p-3">{t.status}</td><td data-label="Created" className="whitespace-nowrap p-3">{formatDate(t.createdAt)}</td><td data-label="Resolved" className="whitespace-nowrap p-3">{formatDate(t.actualDate)}</td><td data-label="Action" className="p-3 whitespace-nowrap"><button type="button" onClick={() => setViewingTicket(t)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer" title="View details"><Eye className="h-3.5 w-3.5" /><span>Details</span></button></td></tr>)}
-        {!rows.length && <tr><td colSpan={11} data-empty className="p-8 text-center text-slate-400">{loading ? 'Loading tickets...' : 'No resolved tickets yet.'}</td></tr>}
+        {/* MOBILE SLIM HORIZONTAL ROWS (md:hidden) */}
+        <div className="md:hidden divide-y divide-slate-100 bg-white">
+          {!rows.length ? (
+            <div className="p-8 text-center text-slate-400">{loading ? 'Loading tickets...' : 'No resolved tickets yet.'}</div>
+          ) : (
+            rows.map(t => (
+              <div
+                key={t.ticketNo}
+                onClick={() => setViewingTicket(t)}
+                className="px-3 py-2.5 hover:bg-slate-50/80 active:bg-slate-100/70 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-lg shrink-0">
+                    {t.ticketNo}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-slate-800 truncate leading-snug">
+                        {t.problem || t.application || 'Technical Ticket'}
+                      </h4>
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 bg-emerald-100 text-emerald-800">
+                        {t.status}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1.5">
+                      <span className="font-medium text-slate-700 truncate">{t.onBehalfOf ? `${t.onBehalfOf} (by ${t.requester})` : t.requester}</span>
+                      <span>•</span>
+                      <span className="truncate">{t.company}</span>
+                      <span>•</span>
+                      <span className="truncate">{t.application}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewingTicket(t);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 active:scale-95 transition-all whitespace-nowrap cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <Eye className="w-3 h-3 text-blue-600" />
+                    <span>Details</span>
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* DESKTOP DATA TABLE (hidden md:block) */}
+        <div className="hidden md:block overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Ticket', 'Requester', 'Company', 'Category', 'Application', 'Problem', 'What Has To Be Changed', 'Status', 'Created', 'Resolved', 'Action'].map(h => <th key={h} className="whitespace-nowrap p-3">{h}</th>)}</tr></thead><tbody>
+         {rows.map(t => <tr key={t.ticketNo} className="border-t border-slate-100"><td className="whitespace-nowrap p-3 font-semibold text-blue-700"><button type="button" onClick={() => setViewingTicket(t)} className="font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer flex items-center gap-1" title="Click to view details"><span>{t.ticketNo}</span></button></td><td className="p-3">{t.onBehalfOf ? `${t.onBehalfOf} (by ${t.requester})` : t.requester}</td><td className="p-3">{t.company}</td><td className="p-3">{t.category || '—'}</td><td className="p-3">{t.application}</td><td className="max-w-xs whitespace-pre-wrap p-3">{t.problem}</td><td className="max-w-xs whitespace-pre-wrap p-3">{t.correction || '—'}</td><td className="p-3">{t.status}</td><td className="whitespace-nowrap p-3">{formatDate(t.createdAt)}</td><td className="whitespace-nowrap p-3">{formatDate(t.actualDate)}</td><td className="p-3 whitespace-nowrap"><button type="button" onClick={() => setViewingTicket(t)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer" title="View details"><Eye className="h-3.5 w-3.5" /><span>Details</span></button></td></tr>)}
+        {!rows.length && <tr><td colSpan={11} className="p-8 text-center text-slate-400">{loading ? 'Loading tickets...' : 'No resolved tickets yet.'}</td></tr>}
       </tbody></table></div></section>
     <Modal isOpen={open} onClose={closeForm} title="Raise Technical Help Ticket" large closeOnBackdrop={false}>
       {error && <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>}

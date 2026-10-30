@@ -12,7 +12,8 @@ import {
   Database,
   ExternalLink,
   ShieldCheck,
-  Trash2
+  Trash2,
+  Plus
 } from 'lucide-react';
 import {
   isGoogleSheetsConnected,
@@ -33,7 +34,8 @@ export function Header({
   onRefreshData,
   showToast,
   isSyncing,
-  onForceSync
+  onForceSync,
+  onOpenNewRequest
 }) {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [inputUrl, setInputUrl] = useState(getGoogleAppsScriptUrl());
@@ -177,14 +179,27 @@ export function Header({
         </div>
 
         {/* Center / Status Badges */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Quick Create Button on Mobile (Reference App Style Top Right + Action) */}
+          {onOpenNewRequest && (
+            <button
+              type="button"
+              onClick={onOpenNewRequest}
+              className="sm:hidden w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-700 text-white flex items-center justify-center shadow-xs active:scale-95 cursor-pointer"
+              title="New System Request"
+              aria-label="New System Request"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          )}
+
           {/* Fast live sync button */}
           {isConnected && (
             <button
               type="button"
               onClick={onForceSync}
               disabled={isSyncing}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 max-sm:w-10 max-sm:h-10 max-sm:p-0 rounded-full text-xs font-semibold bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 shadow-2xs hover:shadow-xs hover:-translate-y-0.5 transition-all cursor-pointer disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 max-sm:w-8 max-sm:h-8 max-sm:p-0 rounded-full text-xs font-semibold bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50 hover:text-indigo-600 shadow-2xs hover:shadow-xs hover:-translate-y-0.5 transition-all cursor-pointer disabled:opacity-60"
               title="Click to immediately pull live updates from Google Sheet"
             >
               <RefreshCw className={`w-3 h-3 text-indigo-600 ${isSyncing ? 'animate-spin' : ''}`} />

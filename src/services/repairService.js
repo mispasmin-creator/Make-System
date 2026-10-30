@@ -4,22 +4,45 @@ import { repairSheetAdapter, repairSheetConnected } from './repairSheetAdapter';
 import { addRepairWorkingDays, transitionIssue, getSummary, getMISRows } from '../utils/repairWorkflow.mjs';
 
 const KEY = 'make_system_repair_demo_v1';
+const LIVE_CACHE_KEY = 'make_system_repair_live_cache_v1';
 let adapter = repairSheetConnected() ? repairSheetAdapter : null;
 let demo = false;
-let cache = [];
+const readLiveCache = () => {
+  try {
+    const data = JSON.parse(localStorage.getItem(LIVE_CACHE_KEY) || '[]');
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+let cache = readLiveCache();
 const listeners = new Set();
 let revision = 0;
 let listInFlight = null;
-const emit = () => listeners.forEach(listener => listener(cache));
+const emit = () => {
+  try {
+    if (!demo && Array.isArray(cache) && cache.length > 0) {
+      localStorage.setItem(LIVE_CACHE_KEY, JSON.stringify(cache));
+    }
+  } catch { /* storage full */ }
+  listeners.forEach(listener => listener(cache));
+};
 const readDemo = () => { const data = JSON.parse(localStorage.getItem(KEY) || '{"sequence":0,"issues":[]}'); return data; };
 const operations = ['listIssues', 'getIssueDetails', 'createIssue', 'submitAssessment', 'completeRepair', 'acknowledgeCompletion'];
 
 export function configureRepairAdapter(value) {
   if (!value || operations.some(key => typeof value[key] !== 'function')) throw new Error('Repair backend adapter is incomplete.');
-  adapter = value; demo = false; cache = []; emit();
+  adapter = value; demo = false; cache = readLiveCache(); emit();
 }
-// Live issues are cached in memory only; drop them whenever the signed-in user changes.
-export function clearRepairCache() { if (!demo) { cache = []; revision++; emit(); } }
+// Live issues are cached; clear them whenever the signed-in user changes.
+export function clearRepairCache() {
+  if (!demo) {
+    cache = [];
+    revision++;
+    try { localStorage.removeItem(LIVE_CACHE_KEY); } catch { /* noop */ }
+    emit();
+  }
+}
 export function enableRepairDemo() { demo = true; cache = readDemo().issues; emit(); }
 export function getRepairMode() { return demo ? 'demo' : adapter ? 'connected' : 'unconfigured'; }
 export function getCachedRepairIssues() { return cache; }

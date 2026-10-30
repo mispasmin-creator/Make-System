@@ -36,9 +36,9 @@ export function UpdateMisSystemPage({
   }, [activeList, currentPage, pageSize]);
 
   return (
-    <div className="h-full flex flex-col bg-[#f6f8fb] space-y-4 p-5 overflow-hidden font-sans">
+    <div className="h-full flex flex-col bg-[#f6f8fb] space-y-3 sm:space-y-4 p-3 sm:p-5 overflow-hidden font-sans">
       {/* Sticky Page Header */}
-      <div className="bg-white rounded-2xl border border-slate-200/70 p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.04),0_2px_6px_-1px_rgba(15,23,42,0.02)] flex flex-wrap items-center justify-between gap-3 shrink-0">
+      <div className="bg-white rounded-2xl border border-slate-200/70 p-3.5 sm:p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.04),0_2px_6px_-1px_rgba(15,23,42,0.02)] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-sm shadow-indigo-300/40 shrink-0">
             <Database className="w-5 h-5" />
@@ -84,7 +84,94 @@ export function UpdateMisSystemPage({
 
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-[0_6px_24px_-4px_rgba(15,23,42,0.05),0_2px_8px_-1px_rgba(15,23,42,0.02)] overflow-hidden flex flex-col flex-1 min-h-0">
-        <div className="overflow-x-auto overflow-y-auto flex-1">
+        
+        {/* MOBILE SLIM HORIZONTAL ROWS (md:hidden) */}
+        <div className="md:hidden flex-1 overflow-y-auto divide-y divide-slate-100 bg-white">
+          {activeList.length === 0 ? (
+            <div className="p-8 text-center text-slate-400">
+              <Database className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="font-semibold text-slate-700 text-sm">
+                {activeTab === 'pending'
+                  ? 'No requests awaiting MIS update'
+                  : 'No completed MIS updates yet'}
+              </p>
+            </div>
+          ) : (
+            activeList.map((req) => (
+              <div
+                key={req.id}
+                onClick={() => onViewDetails(req)}
+                className="px-3 py-2.5 hover:bg-slate-50/80 active:bg-slate-100/70 flex items-center justify-between gap-2.5 transition-colors cursor-pointer"
+              >
+                {/* Left: Request No & Info */}
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span className="font-mono font-bold text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg shrink-0">
+                    {req.requestNo}
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    {/* Line 1: System Name + Status Tag */}
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-slate-800 truncate leading-snug">
+                        {req.systemName || req.systemRequirements || 'System Request'}
+                      </h4>
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 ${
+                          activeTab === 'completed'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {activeTab === 'completed' ? 'MIS Closed' : 'Pending MIS'}
+                      </span>
+                    </div>
+
+                    {/* Line 2: Requester • Company • Dev */}
+                    <div className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1.5">
+                      <span className="font-medium text-slate-700 truncate">{req.requester || req.createdBy || '—'}</span>
+                      <span>•</span>
+                      <span className="truncate">{req.companyName}</span>
+                      <span>•</span>
+                      <span className="text-indigo-600 truncate font-medium">{req.assignedDeveloper || 'Dev'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Action or Details Button */}
+                <div className="shrink-0 flex items-center">
+                  {activeTab === 'pending' && canEdit ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRequest(req);
+                        setIsModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs active:scale-95 transition-all whitespace-nowrap cursor-pointer"
+                    >
+                      Update MIS
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewDetails(req);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 active:scale-95 transition-all whitespace-nowrap cursor-pointer inline-flex items-center gap-1"
+                    >
+                      <Eye className="w-3 h-3 text-indigo-600" />
+                      <span>Details</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* DESKTOP DATA TABLE (hidden on mobile) */}
+        <div className="hidden md:block overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full border-collapse text-left text-xs">
             <thead className="sticky top-0 bg-slate-50/90 z-20 shadow-xs border-b border-slate-200/70">
               <tr>

@@ -689,61 +689,75 @@ const delay = (ms = 40) => new Promise(res => setTimeout(res, ms));
  * Universal API Client for Google Apps Script Web App
  * Uses text/plain payload to prevent browser CORS preflight blocking
  */
-export async function callGoogleAppsScript(action, payload = {}, method = 'POST') {
+export async function callGoogleAppsScript(action, payload = {}, method = 'POST', retries = 2) {
   let token = '';
   try { token = JSON.parse(localStorage.getItem('make_system_session_v2') || sessionStorage.getItem('make_system_session_v2') || '{}').token || ''; } catch { /* No active session. */ }
   payload = { ...payload, token };
   const url = getGoogleAppsScriptUrl();
   if (!url) throw new Error('Google Apps Script URL is not configured.');
 
-  const controller = new AbortController();
-  // Apps Script cold starts, spreadsheet locks and redirects can exceed 8 seconds.
-  const timeoutMs = method === 'GET' ? 60000 : 120000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    // Apps Script cold starts, spreadsheet locks and redirects can exceed 8 seconds.
+    const timeoutMs = method === 'GET' ? 60000 : 120000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    if (method === 'GET') {
-      const queryParams = new URLSearchParams({ action, ...payload });
-      const fullUrl = `${url}${url.includes('?') ? '&' : '?'}${queryParams.toString()}`;
-      const res = await fetch(fullUrl, {
-        method: 'GET',
-        redirect: 'follow',
+    try {
+      if (method === 'GET') {
+        const queryParams = new URLSearchParams({ action, ...payload });
+        const fullUrl = `${url}${url.includes('?') ? '&' : '?'}${queryParams.toString()}`;
+        const res = await fetch(fullUrl, {
+          method: 'GET',
+          redirect: 'follow',
+          signal: controller.signal
+        });
+        if (!res.ok) throw new Error(`Google Apps Script responded with HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        return normalizeApiRequests(data);
+      }
+
+      // POST using text/plain to avoid CORS preflight options
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify({
+          action,
+          ...payload
+        }),
         signal: controller.signal
       });
+
       if (!res.ok) throw new Error(`Google Apps Script responded with HTTP ${res.status}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       return normalizeApiRequests(data);
-    }
+    } catch (err) {
+      clearTimeout(timeoutId);
 
-    // POST using text/plain to avoid CORS preflight options
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8'
-      },
-      body: JSON.stringify({
-        action,
-        ...payload
-      }),
-      signal: controller.signal
-    });
+      const isNetworkError =
+        err?.name === 'TypeError' && /Failed to fetch|NetworkError|Network request failed/i.test(err?.message || '');
+      const isTransient = isNetworkError || /NETWORK_CHANGED/i.test(err?.message || '');
 
-    if (!res.ok) throw new Error(`Google Apps Script responded with HTTP ${res.status}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    return normalizeApiRequests(data);
-  } catch (err) {
-    if (controller.signal.aborted || err?.name === 'AbortError' || err?.name === 'TimeoutError') {
-      throw new Error(method === 'GET'
-        ? 'Google Sheet response timed out. Please refresh and try again.'
-        : 'Google Sheet save response timed out. The save may have completed; refresh records before retrying.');
+      // Retry GET requests or transient network glitches before failing
+      if (attempt < retries && (method === 'GET' || isTransient)) {
+        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+        continue;
+      }
+
+      if (controller.signal.aborted || err?.name === 'AbortError' || err?.name === 'TimeoutError') {
+        throw new Error(method === 'GET'
+          ? 'Google Sheet response timed out. Please refresh and try again.'
+          : 'Google Sheet save response timed out. The save may have completed; refresh records before retrying.');
+      }
+      if (/Session expired/i.test(err?.message || '')) window.dispatchEvent(new Event('make-system-session-expired'));
+      console.error(`Google Apps Script [${action}] failed:`, err);
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    if (/Session expired/i.test(err?.message || '')) window.dispatchEvent(new Event('make-system-session-expired'));
-    console.error(`Google Apps Script [${action}] failed:`, err);
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -840,7 +854,10 @@ export const dataService = {
         }
 
         const cached = loadStoredRequests();
-        const masterOptions = await this.getMasterOptions();
+        const cachedOptions = loadCachedMasterOptions();
+        const masterOptions = (Array.isArray(cachedOptions?.companies) && cachedOptions.companies.length > 0)
+          ? cachedOptions
+          : await this.getMasterOptions();
         return {
           requests: cached,
           masterOptions,
