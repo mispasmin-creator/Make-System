@@ -7,12 +7,17 @@ import { ImageAttachmentCell } from '../components/ImageAttachmentCell';
 import { dataService } from '../services/dataService';
 import { GOOGLE_SHEETS_CONFIG } from '../config/integrationConfig';
 import { repairService, getRepairMode, enableRepairDemo, getCachedRepairIssues, subscribeRepairIssues, canRepairAction } from '../services/repairService';
-import { OVERALL, REPAIR_STAGES, overallStatus, stageState, delayText, getSummary, getMISRows } from '../utils/repairWorkflow.mjs';
+import { OVERALL, REPAIR_STAGES, overallStatus as rawOverallStatus, stageState, delayText, getSummary, getMISRows } from '../utils/repairWorkflow.mjs';
 import { formatDisplayDateTime, formatToKolkataDateString } from '../utils/dateUtils';
 
 const control = 'mt-2 w-full rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all';
 const button = 'inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 text-xs font-semibold text-white shadow-xs shadow-indigo-300/40 hover:from-indigo-500 hover:to-indigo-600 transition-all cursor-pointer disabled:opacity-50';
 const datetime = value => value ? formatDisplayDateTime(value) : '—';
+const displayRepairStatus = issue => {
+  if (!issue?.approval?.actual) return 'Pending Approval';
+  if (!issue?.repair?.actual && !issue?.management?.actual) return 'In Process';
+  return 'Completed';
+};
 
 function Field({ label, children }) { return <label className="block text-xs font-semibold text-slate-700">{label}{children}</label>; }
 
@@ -20,12 +25,13 @@ export function RepairSystemPage({ currentUser, companyOptions = [], view = 'ove
   const [issues, setIssues] = useState(getCachedRepairIssues);
   const [mode, setMode] = useState(getRepairMode);
   const tab = view;
+  const overallStatus = issue => tab === 'new' ? displayRepairStatus(issue) : rawOverallStatus(issue);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [now, setNow] = useState(() => Date.now());
-  const [filters, setFilters] = useState({ search: '', company: '', status: '', dateField: 'createdAt', from: '', to: '' });
+  const [filters, setFilters] = useState({ search: '', company: '', status: '', requester: '', developer: '', dateField: 'createdAt', from: '', to: '' });
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(50);
   const [dialog, setDialog] = useState(null);
   const [newOpen, setNewOpen] = useState(false);
   const [attachments, setAttachments] = useState([]);
@@ -36,7 +42,10 @@ export function RepairSystemPage({ currentUser, companyOptions = [], view = 'ove
   const busy = useRef(false);
   const createKey = useRef(crypto.randomUUID());
   const [form, setForm] = useState({ requester: currentUser.fullName || '', company: '', description: '', location: '' });
-  const companies = [...new Set(companyOptions.map(name => String(name).trim()).filter(Boolean))];
+  const companies = [...new Set(issues.map(issue => String(issue.company || '').trim()).filter(Boolean))];
+  const requesters = [...new Set(issues.map(issue => issue.requester).filter(Boolean))].sort();
+  const developers = [...new Set(issues.map(issue => issue.assessment?.assignedDeveloper).filter(Boolean))].sort();
+  const repairDisplayStatuses = ['Pending Approval', 'In Process', 'Completed'];
 
 
   useEffect(() => {
@@ -134,7 +143,7 @@ export function RepairSystemPage({ currentUser, companyOptions = [], view = 'ove
       {mode === 'demo' && <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Development demo mode — browser-only data. Live Google Sheets integration is not configured.</p>}
       {error && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {notice && <p role="status" className="mb-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-      {tab === 'overview' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(summary).map(([label, count]) => <div key={label} className="rounded-xl border border-slate-100 bg-white p-5 shadow-xs"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-3xl font-bold text-indigo-700">{count}</p></div>)}</div> : tab === 'new' ? (() => { const rows = issues.filter(i => !filters.search || [i.serial, i.requester, i.company, i.description, i.location].join(' ').toLowerCase().includes(filters.search.toLowerCase())); return <div className="rounded-xl border border-slate-100 bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-800">History <span className="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-600">{rows.length}</span></h2><div className="relative w-full sm:w-64"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input aria-label="Search history" value={filters.search} onChange={e => filter('search', e.target.value)} placeholder="Search serial, requester, issue..." className="w-full rounded-xl border border-slate-200/80 bg-slate-50/70 py-2 pl-9 pr-3 text-xs" /></div></div>
+      {tab === 'overview' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(summary).map(([label, count]) => <div key={label} className="rounded-xl border border-slate-100 bg-white p-5 shadow-xs"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-3xl font-bold text-indigo-700">{count}</p></div>)}</div> : tab === 'new' ? (() => { const rows = issues.filter(i => (!filters.search || [i.serial, i.requester, i.company, i.description, i.location].join(' ').toLowerCase().includes(filters.search.toLowerCase())) && (!filters.requester || i.requester === filters.requester) && (!filters.developer || i.assessment?.assignedDeveloper === filters.developer) && (!filters.status || displayRepairStatus(i) === filters.status)); return <div className="rounded-xl border border-slate-100 bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-800">History <span className="ml-2 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-600">{rows.length}</span></h2><div className="flex flex-wrap gap-2"><div className="relative w-full sm:w-64"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input aria-label="Search history" value={filters.search} onChange={e => filter('search', e.target.value)} placeholder="Search serial, requester, issue..." className="w-full rounded-xl border border-slate-200/80 bg-slate-50/70 py-2 pl-9 pr-3 text-xs" /></div><select aria-label="Filter by Requester" value={filters.requester} onChange={e => filter('requester', e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs"><option value="">All Requesters</option>{requesters.map(v => <option key={v}>{v}</option>)}</select><select aria-label="Filter by Assigned Developer" value={filters.developer} onChange={e => filter('developer', e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs"><option value="">All Developers</option>{developers.map(v => <option key={v}>{v}</option>)}</select><select aria-label="Filter by Status" value={filters.status} onChange={e => filter('status', e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs"><option value="">All Statuses</option>{repairDisplayStatuses.map(v => <option key={v}>{v}</option>)}</select></div></div>
       {/* MOBILE SLIM HORIZONTAL ROWS (md:hidden) */}
       <div className="md:hidden divide-y divide-slate-100 bg-white">
         {!rows.length ? (
@@ -156,7 +165,7 @@ export function RepairSystemPage({ currentUser, companyOptions = [], view = 'ove
                       {issue.description || 'Issue Request'}
                     </h4>
                     <span className="px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 bg-slate-100 text-slate-700">
-                      {overallStatus(issue)}
+                      {displayRepairStatus(issue)}
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1.5">

@@ -32,10 +32,9 @@ export function Pagination({
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               className="px-2.5 py-1 bg-white border border-slate-200/80 rounded-lg text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 shadow-2xs cursor-pointer"
             >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
               <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={1000}>1000</option>
             </select>
           </div>
         )}

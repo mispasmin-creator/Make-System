@@ -18,7 +18,9 @@ export function IntroduceSystemPage({
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(50);
+  const [requesterFilter, setRequesterFilter] = useState('');
+  const [developerFilter, setDeveloperFilter] = useState('');
 
   const pendingRequests = useMemo(() => {
     return requests.filter(r => !r.introduction?.isCompleted);
@@ -29,11 +31,14 @@ export function IntroduceSystemPage({
   }, [requests]);
 
   const activeList = activeTab === 'pending' ? pendingRequests : completedRequests;
+  const requesters = [...new Set(requests.map(r => r.requester || r.createdBy).filter(Boolean))].sort();
+  const developers = [...new Set(requests.map(r => r.assignedDeveloper).filter(Boolean))].sort();
+  const filteredActiveList = useMemo(() => activeList.filter(r => (!requesterFilter || (r.requester || r.createdBy) === requesterFilter) && (!developerFilter || r.assignedDeveloper === developerFilter)), [activeList, requesterFilter, developerFilter]);
 
   const paginatedList = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return activeList.slice(start, start + pageSize);
-  }, [activeList, currentPage, pageSize]);
+    return filteredActiveList.slice(start, start + pageSize);
+  }, [filteredActiveList, currentPage, pageSize]);
 
   return (
     <div className="h-full flex flex-col bg-[#f6f8fb] space-y-3 sm:space-y-4 p-3 sm:p-5 overflow-hidden font-sans">
@@ -82,12 +87,17 @@ export function IntroduceSystemPage({
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200/70 bg-white p-3">
+        <select aria-label="Filter by Requester" value={requesterFilter} onChange={e => { setRequesterFilter(e.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 px-3 py-2 text-xs"><option value="">All Requesters</option>{requesters.map(v => <option key={v}>{v}</option>)}</select>
+        <select aria-label="Filter by Assigned Developer" value={developerFilter} onChange={e => { setDeveloperFilter(e.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 px-3 py-2 text-xs"><option value="">All Developers</option>{developers.map(v => <option key={v}>{v}</option>)}</select>
+      </div>
+
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-[0_6px_24px_-4px_rgba(15,23,42,0.05),0_2px_8px_-1px_rgba(15,23,42,0.02)] overflow-hidden flex flex-col flex-1 min-h-0">
         
         {/* MOBILE SLIM HORIZONTAL ROWS (md:hidden) */}
         <div className="md:hidden flex-1 overflow-y-auto divide-y divide-slate-100 bg-white">
-          {activeList.length === 0 ? (
+          {filteredActiveList.length === 0 ? (
             <div className="p-8 text-center text-slate-400">
               <Handshake className="w-8 h-8 text-slate-300 mx-auto mb-2" />
               <p className="font-semibold text-slate-700 text-sm">
@@ -95,7 +105,7 @@ export function IntroduceSystemPage({
               </p>
             </div>
           ) : (
-            activeList.map((req) => (
+            paginatedList.map((req) => (
               <div
                 key={req.id}
                 onClick={() => onViewDetails(req)}
@@ -347,7 +357,7 @@ export function IntroduceSystemPage({
         <Pagination
           currentPage={currentPage}
           pageSize={pageSize}
-          totalItems={activeList.length}
+          totalItems={filteredActiveList.length}
           onPageChange={setCurrentPage}
           onPageSizeChange={(newSize) => {
             setPageSize(newSize);

@@ -38,11 +38,13 @@ export function SystemRequestsPage({
   const [statusFilter, setStatusFilter] = useState('');
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(50);
 
   // Mobile-specific controls
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [mobileViewMode, setMobileViewMode] = useState('cards'); // 'cards' | 'table'
+  const dataCompanies = [...new Set(requests.map(req => req.companyName).filter(Boolean))].sort();
+  const dataDevelopers = [...new Set(requests.map(req => req.assignedDeveloper).filter(Boolean))].sort();
 
   const activeFiltersCount = (companyFilter ? 1 : 0) +
     (devFilter ? 1 : 0) +
@@ -211,7 +213,7 @@ export function SystemRequestsPage({
               }}
             >
               <option value="">All Companies</option>
-              {companyOptions.map((c) => (
+              {dataCompanies.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -226,7 +228,7 @@ export function SystemRequestsPage({
               }}
             >
               <option value="">All Developers</option>
-              {developerOptions.map((d) => (
+              {dataDevelopers.map((d) => (
                 <option key={d} value={d}>{d}</option>
               ))}
             </select>
@@ -287,7 +289,7 @@ export function SystemRequestsPage({
                 }}
               >
                 <option value="">All Companies</option>
-                {companyOptions.map((c) => (
+                {dataCompanies.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -301,7 +303,7 @@ export function SystemRequestsPage({
                 }}
               >
                 <option value="">All Developers</option>
-                {developerOptions.map((d) => (
+                {dataDevelopers.map((d) => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>

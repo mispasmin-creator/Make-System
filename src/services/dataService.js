@@ -609,7 +609,12 @@ export function loadCachedRequests() {
 export function loadCachedMasterOptions() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MASTER);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const options = JSON.parse(raw);
+      const cleaned = { ...options, developers: [] };
+      localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(cleaned));
+      return cleaned;
+    }
   } catch (e) {}
   // With a live sheet, dropdowns come only from the Master sheet (A = Firm Name, B = DME).
   return isGoogleSheetsConnected() ? { companies: [], developers: [] } : { companies: [...SAMPLE_COMPANIES], developers: [...SAMPLE_DEVELOPERS] };
@@ -645,18 +650,26 @@ function normalizeApiRequests(payload) {
 }
 
 function loadStoredRequests() {
+  const cleanLocalNames = request => {
+    const clean = value => value === 'Anil Kumar (Admin)' ? 'Admin' : value;
+    const next = { ...request, createdBy: clean(request.createdBy) };
+    if (next.introduction) next.introduction = { ...next.introduction, completedBy: clean(next.introduction.completedBy) };
+    if (next.misUpdate) next.misUpdate = { ...next.misUpdate, updatedBy: clean(next.misUpdate.updatedBy) };
+    if (Array.isArray(next.audit)) next.audit = next.audit.map(item => ({ ...item, actor: clean(item.actor) }));
+    return next;
+  };
   try {
     const raw = localStorage.getItem(STORAGE_KEY_REQUESTS);
     if (!raw) {
       const initial = getInitialSampleData().map(normalizeLegacyStage);
       saveStoredRequests(initial);
       localStorage.setItem(STORAGE_KEY_SEQUENCE, '7');
-      return initial;
+      return initial.map(cleanLocalNames);
     }
-    return JSON.parse(raw).map(normalizeLegacyStage);
+    return JSON.parse(raw).map(normalizeLegacyStage).map(cleanLocalNames);
   } catch (err) {
     console.error('Failed to load stored requests:', err);
-    return getInitialSampleData().map(normalizeLegacyStage);
+    return getInitialSampleData().map(normalizeLegacyStage).map(cleanLocalNames);
   }
 }
 

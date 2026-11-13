@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Eye } from 'lucide-react';
 import { getCachedTechnicalTickets, subscribeTechnicalTickets, listTechnicalTickets, submitTechnicalTicket } from '../services/technicalHelpService';
 import { Modal } from '../components/Modal';
+import { Pagination } from '../components/Pagination';
 import { TechnicalTicketDetailsModal } from '../components/TechnicalTicketDetailsModal';
 
 function formatDate(value) {
@@ -21,6 +22,10 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
   const [tickets, setTickets] = useState(getCachedTechnicalTickets);
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'complete' | 'all'
   const [q, setQ] = useState('');
+  const [requesterFilter, setRequesterFilter] = useState('');
+  const [developerFilter, setDeveloperFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(() => getCachedTechnicalTickets().length === 0);
@@ -101,10 +106,13 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
   }, [activeTab, pendingTickets, completedTickets, tickets]);
 
   const rows = useMemo(() => {
-    if (!q.trim()) return currentTabTickets;
+    if (!q.trim() && !requesterFilter && !developerFilter) return currentTabTickets;
     const query = q.toLowerCase();
-    return currentTabTickets.filter(t => JSON.stringify(t).toLowerCase().includes(query));
-  }, [currentTabTickets, q]);
+    return currentTabTickets.filter(t => (!query || JSON.stringify(t).toLowerCase().includes(query)) && (!requesterFilter || t.requester === requesterFilter) && (!developerFilter || t.assignedTo === developerFilter));
+  }, [currentTabTickets, q, requesterFilter, developerFilter]);
+  const requesters = [...new Set(tickets.map(t => t.requester).filter(Boolean))].sort();
+  const developers = [...new Set(tickets.map(t => t.assignedTo).filter(Boolean))].sort();
+  const paginatedRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6">
@@ -162,11 +170,19 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
             <input
               aria-label="Search tickets"
               value={q}
-              onChange={e => setQ(e.target.value)}
+              onChange={e => { setQ(e.target.value); setCurrentPage(1); }}
               className="w-full rounded-xl border border-indigo-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 shadow-[0_4px_12px_rgba(25,81,220,0.14),0_1px_3px_rgba(25,81,220,0.10)] transition-[border-color,box-shadow] hover:border-indigo-400 hover:shadow-[0_6px_16px_rgba(25,81,220,0.20)] focus:border-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-100"
             />
           </div>
         </label>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <select aria-label="Filter by Requester" value={requesterFilter} onChange={e => { setRequesterFilter(e.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs">
+            <option value="">All Requesters</option>{requesters.map(v => <option key={v}>{v}</option>)}
+          </select>
+          <select aria-label="Filter by Assigned Developer" value={developerFilter} onChange={e => { setDeveloperFilter(e.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs">
+            <option value="">All Developers</option>{developers.map(v => <option key={v}>{v}</option>)}
+          </select>
+        </div>
       </div>
 
       {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -174,7 +190,7 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
 
       {/* MOBILE SLIM HORIZONTAL ROWS (md:hidden) */}
       <div className="md:hidden divide-y divide-slate-100 bg-white rounded-2xl border border-slate-200/70 overflow-hidden mb-4 shadow-xs">
-        {rows.map(t => {
+        {paginatedRows.map(t => {
           const resolved = isTicketResolved(t);
           return (
             <div
@@ -275,7 +291,7 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(t => (
+            {paginatedRows.map(t => (
               <tr key={t.ticketNo} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
                 <td className="whitespace-nowrap p-3 font-semibold">
                   <button
@@ -349,6 +365,8 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
           </tbody>
         </table>
       </div>
+
+      <Pagination currentPage={Math.min(currentPage, Math.max(1, Math.ceil(rows.length / pageSize)))} pageSize={pageSize} totalItems={rows.length} onPageChange={setCurrentPage} onPageSizeChange={size => { setPageSize(size); setCurrentPage(1); }} />
 
       <Modal
         isOpen={Boolean(selectedTicket)}

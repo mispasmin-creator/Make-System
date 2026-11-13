@@ -30,9 +30,9 @@ export const TESTING_DECISION = {
 // Demo user used for auditing created/updated actions
 export const CURRENT_USER = {
   id: 'usr_demo_admin',
-  name: 'Anil Kumar (Admin)',
+  name: 'Admin',
   role: 'System Administrator',
-  email: 'anil.kumar@company.local'
+  email: 'admin@makesystem.local'
 };
 
 // Sample Companies (as specified: Pmmpl, RKL, Purab, Refrasynth, Refratech)
@@ -45,11 +45,7 @@ export const SAMPLE_COMPANIES = [
 ];
 
 // Sample Assigned Developers (Matching Master sheet DME)
-export const SAMPLE_DEVELOPERS = [
-  'Ahitesh Tandon',
-  'Bhupendra Kumar',
-  'MD Alauddin'
-];
+export const SAMPLE_DEVELOPERS = [];
 
 // Business Timezone
 export const TIMEZONE = 'Asia/Kolkata';

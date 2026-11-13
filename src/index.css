@@ -372,3 +372,13 @@ html { -webkit-tap-highlight-color: transparent; }
     box-shadow: none !important;
   }
 }
+.technical-help-table th:nth-child(1), .technical-help-table td:nth-child(1) { width: 85px; }
+.technical-help-table th:nth-child(2), .technical-help-table td:nth-child(2) { width: 150px; }
+.technical-help-table th:nth-child(3), .technical-help-table td:nth-child(3) { width: 110px; }
+.technical-help-table th:nth-child(4), .technical-help-table td:nth-child(4) { width: 110px; }
+.technical-help-table th:nth-child(5), .technical-help-table td:nth-child(5) { width: 260px; }
+.technical-help-table th:nth-child(6), .technical-help-table td:nth-child(6), .technical-help-table th:nth-child(7), .technical-help-table td:nth-child(7) { width: 340px; max-width: 340px; }
+.technical-help-table td:nth-child(5), .technical-help-table td:nth-child(6), .technical-help-table td:nth-child(7) { max-height: 82px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; overflow-wrap: anywhere; }
+.technical-help-table th:nth-child(8), .technical-help-table td:nth-child(8) { width: 110px; }
+.technical-help-table th:nth-child(9), .technical-help-table td:nth-child(9), .technical-help-table th:nth-child(10), .technical-help-table td:nth-child(10) { width: 170px; }
+.technical-help-table th:nth-child(11), .technical-help-table td:nth-child(11) { width: 100px; }

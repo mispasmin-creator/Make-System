@@ -137,22 +137,26 @@ const SEED_USERS = [
 
 // Helper: Load Users
 export function loadLocalUsers() {
-  if (typeof window === 'undefined') return SEED_USERS;
+  const adminOnly = users => users.filter(user => user.role === USER_ROLES.ADMIN).map(user => ({ ...normalizeAccess(user), fullName: 'Admin', email: 'admin@makesystem.local' }));
+  if (typeof window === 'undefined') return adminOnly(SEED_USERS);
   try {
     const raw = localStorage.getItem(STORAGE_KEY_USERS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(SEED_USERS));
-      return SEED_USERS;
+      const admins = adminOnly(SEED_USERS);
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(admins));
+      return admins;
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
       // Sanitize: regular users only have view permissions; edit/approve is admin only
-      return parsed.map(normalizeAccess);
+      const admins = adminOnly(parsed);
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(admins));
+      return admins;
     }
   } catch {
-    return SEED_USERS;
+    return adminOnly(SEED_USERS);
   }
-  return SEED_USERS;
+  return adminOnly(SEED_USERS);
 }
 
 // Helper: Save Users
