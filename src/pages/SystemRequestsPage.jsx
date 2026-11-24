@@ -20,6 +20,7 @@ import {
 import { StatusBadge } from '../components/StatusBadge';
 import { Pagination } from '../components/Pagination';
 import { ImageAttachmentCell } from '../components/ImageAttachmentCell';
+import { CsvExportButton } from '../components/CsvExportButton';
 import { formatDisplayDate } from '../utils/dateUtils';
 import { STAGES } from '../constants/stages';
 
@@ -105,6 +106,7 @@ export function SystemRequestsPage({
         </div>
 
         <div className="flex items-center gap-2">
+          <CsvExportButton rows={filteredRequests} filename="system_requests" />
           {canCreate && (
             <button
               type="button"
@@ -124,6 +126,8 @@ export function SystemRequestsPage({
           <h2 className="text-sm font-bold text-slate-800 tracking-tight">Recent Requests</h2>
           <p className="text-[11px] text-slate-400 font-medium">{filteredRequests.length} total records</p>
         </div>
+
+        <CsvExportButton rows={filteredRequests} filename="system_requests" label="CSV" className="px-2.5 py-1.5" />
 
         {/* View Switcher: Cards vs Table */}
         <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">

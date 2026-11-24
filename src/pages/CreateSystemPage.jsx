@@ -15,6 +15,7 @@ import { formatDisplayDate, calculateDueStatus } from '../utils/dateUtils';
 import { STAGES, WORK_STATUS } from '../constants/stages';
 import { CreateActionModal } from '../components/CreateActionModal';
 import { isDevelopmentComplete } from '../utils/systemWorkflow.mjs';
+import { CsvExportButton } from '../components/CsvExportButton';
 
 export function CreateSystemPage({
   requests = [],
@@ -105,6 +106,7 @@ export function CreateSystemPage({
             Completed ({completedRequests.length})
           </button>
         </div>
+        <CsvExportButton rows={filteredActiveList} filename={`create_system_${activeTab}`} />
       </div>
 
       {/* In-app reminder banner */}

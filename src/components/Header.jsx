@@ -288,7 +288,7 @@ export function Header({
                   </span>
                 </div>
                 <p className="text-emerald-800 text-[11px]">
-                  React actions automatically write to Google Sheets. Sheet updates sync back to React in the background every 5 seconds.
+                  React actions automatically write to Google Sheets. Each page loads its own latest data when opened; use Sync for a complete application refresh.
                 </p>
               </div>
             </div>

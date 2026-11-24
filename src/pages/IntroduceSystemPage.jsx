@@ -5,6 +5,7 @@ import { Pagination } from '../components/Pagination';
 import { ImageAttachmentCell } from '../components/ImageAttachmentCell';
 import { formatDisplayDate, formatDisplayDateTime } from '../utils/dateUtils';
 import { IntroduceActionModal } from '../components/IntroduceActionModal';
+import { CsvExportButton } from '../components/CsvExportButton';
 
 export function IntroduceSystemPage({
   requests = [],
@@ -85,6 +86,7 @@ export function IntroduceSystemPage({
             Completed ({completedRequests.length})
           </button>
         </div>
+        <CsvExportButton rows={filteredActiveList} filename={`introduce_system_${activeTab}`} />
       </div>
 
       <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200/70 bg-white p-3">

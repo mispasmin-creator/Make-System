@@ -3,6 +3,7 @@ import { FilePlus2, Plus, Eye, Search, UploadCloud, X, Paperclip } from 'lucide-
 import { Modal } from '../components/Modal';
 import { Pagination } from '../components/Pagination';
 import { RepairIssueDetailsModal } from '../components/RepairIssueDetailsModal';
+import { CsvExportButton } from '../components/CsvExportButton';
 import { ImageAttachmentCell } from '../components/ImageAttachmentCell';
 import { dataService } from '../services/dataService';
 import { GOOGLE_SHEETS_CONFIG } from '../config/integrationConfig';
@@ -50,19 +51,15 @@ export function RepairSystemPage({ currentUser, companyOptions = [], view = 'ove
 
   useEffect(() => {
     let active = true;
-    let syncing = false;
     const unsubscribe = subscribeRepairIssues(data => { if (active) setIssues(data); });
     async function sync() {
-      if (document.hidden || syncing || busy.current || getRepairMode() === 'unconfigured') return;
-      syncing = true;
+      if (busy.current || getRepairMode() === 'unconfigured') return;
       try { await repairService.listIssues(); if (active) setError(''); }
       catch (err) { if (active) setError(err.message); }
-      finally { syncing = false; }
     }
     sync();
-    const timer = setInterval(() => { setNow(Date.now()); sync(); }, 15000);
-    window.addEventListener('focus', sync);
-    return () => { active = false; unsubscribe(); clearInterval(timer); window.removeEventListener('focus', sync); };
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => { active = false; unsubscribe(); clearInterval(timer); };
   }, [mode]);
 
   function filter(name, value) { setFilters(prev => ({ ...prev, [name]: value })); setPage(1); }
@@ -138,7 +135,7 @@ export function RepairSystemPage({ currentUser, companyOptions = [], view = 'ove
   const start = (currentPage - 1) * pageSize;
 
   return <div className="h-full overflow-y-auto bg-[#f6f8fb] p-5 font-sans [&_form]:rounded-2xl [&_form]:border-slate-200/70 [&_form]:shadow-[0_6px_24px_-4px_rgba(15,23,42,0.05)]">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.04)]"><div className="flex items-center gap-3.5"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-sm shadow-indigo-300/40"><FilePlus2 className="h-5 w-5" /></div><div><h1 className="text-lg font-bold leading-tight tracking-tight text-slate-800">{tab === 'new' ? 'New Issue Request' : 'Repair System'}</h1><p className="mt-1 text-xs text-slate-500"></p></div></div>{tab === 'new' && <button type="button" onClick={() => { setNotice(''); setError(''); setNewOpen(true); }} className={button}><Plus className="h-4 w-4" />New Issue Request</button>}</div>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.04)]"><div className="flex items-center gap-3.5"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-sm shadow-indigo-300/40"><FilePlus2 className="h-5 w-5" /></div><div><h1 className="text-lg font-bold leading-tight tracking-tight text-slate-800">{tab === 'new' ? 'New Issue Request' : 'Repair System'}</h1><p className="mt-1 text-xs text-slate-500"></p></div></div><div className="flex flex-wrap items-center gap-2"><CsvExportButton rows={filtered} filename={`repair_system_${tab}`} />{tab === 'new' && <button type="button" onClick={() => { setNotice(''); setError(''); setNewOpen(true); }} className={button}><Plus className="h-4 w-4" />New Issue Request</button>}</div></div>
     {mode === 'unconfigured' ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-6"><h2 className="font-semibold text-amber-900">Repair backend configuration required</h2><p className="my-3 text-sm text-amber-800">Google Sheet link, tab name, headers aur column mapping abhi configure nahi hain. Live records save nahi honge.</p><button type="button" className={button} onClick={() => { enableRepairDemo(); setMode(getRepairMode()); }}>Open development demo</button><p className="mt-2 text-xs text-amber-800">Demo data sirf is browser mein save hota hai; Google Sheet se connected nahi hai.</p></div> : <>
       {mode === 'demo' && <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Development demo mode — browser-only data. Live Google Sheets integration is not configured.</p>}
       {error && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}

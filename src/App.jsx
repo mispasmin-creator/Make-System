@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -32,7 +32,6 @@ import { listTechnicalTickets } from './services/technicalHelpService';
 import { authService, APP_STAGES, SYSTEMS } from './services/authService';
 import { STAGES, WORK_STATUS } from './constants/stages';
 import { calculateDueStatus } from './utils/dateUtils';
-import { GOOGLE_SHEETS_CONFIG, isGoogleSheetsConnected } from './config/integrationConfig';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
@@ -78,24 +77,24 @@ export default function App() {
     return allowed ? ({ 'repair-approval':'repair-system', 'repair-work':'repair-problem' }[allowed.id] || allowed.id) : 'requests';
   }, []);
 
-  // Fetch initial fresh data in parallel across all 3 systems
+  // Load only the dataset required by the page the user opened. Technical and
+  // Repair records are loaded by their mounted page components; the global
+  // Sync button remains the only operation that refreshes every system.
   const loadData = useCallback(async () => {
     try {
       const user = authService.getCurrentUser();
       if (!user) return;
-      const makeAccess = SYSTEMS[0].stages.some(id => authService.canAccessStage(user, id));
-      const repairAccess = SYSTEMS[2].stages.some(id => authService.canAccessStage(user, id));
-      const techAccess = authService.canAccessStage(user, 'technical-all') || authService.canAccessStage(user, 'technical-new');
+      const makePages = ['dashboard', 'requests', 'introduce', 'create', 'mis'];
+      const isMakePage = makePages.includes(activePage) && SYSTEMS[0].stages.some(id => authService.canAccessStage(user, id));
+      const data = isMakePage
+        ? await dataService.forceSyncFromSheets()
+        : { masterOptions: await dataService.getMasterOptions() };
 
-      const [makeResult] = await Promise.allSettled([
-        makeAccess ? dataService.loadAllData() : dataService.getMasterOptions().then(m => ({ masterOptions: m })),
-        repairAccess && getRepairMode() !== 'unconfigured' ? repairService.listIssues() : Promise.resolve(),
-        techAccess ? listTechnicalTickets() : Promise.resolve()
-      ]);
-
-      if (makeResult.status === 'fulfilled' && makeResult.value) {
-        const data = makeResult.value;
-        if (data.requests) setRequests(data.requests);
+      if (data) {
+        if (data.requests) {
+          setRequests(data.requests);
+          setNextRequestNo(dataService.getNextRequestNumber(data.requests));
+        }
         if (data.masterOptions) setMasterOptions(data.masterOptions);
         if (data.nextRequestNo) setNextRequestNo(data.nextRequestNo);
         if (data.users && data.users.length > 0) {
@@ -107,12 +106,12 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [activePage]);
 
   useEffect(() => {
-    if (currentUser) {
-      loadData();
-    }
+    if (!currentUser) return undefined;
+    const loadTimer = setTimeout(() => { loadData(); }, 0);
+    return () => clearTimeout(loadTimer);
   }, [currentUser, loadData]);
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -121,11 +120,11 @@ export default function App() {
     try {
       setIsSyncing(true);
       const user = await authService.refreshSession();
-      setCurrentUser(user);
+      setCurrentUser(previous => JSON.stringify(previous) === JSON.stringify(user) ? previous : user);
       const [res] = await Promise.all([
         SYSTEMS[0].stages.some(id => authService.canAccessStage(user,id)) ? dataService.forceSyncFromSheets() : dataService.getMasterOptions().then(masterOptions => ({masterOptions})),
         SYSTEMS[2].stages.some(id => authService.canAccessStage(user,id)) && getRepairMode() !== 'unconfigured' ? repairService.listIssues() : Promise.resolve(),
-        authService.canAccessStage(user,'technical-all') ? listTechnicalTickets() : Promise.resolve()
+        (authService.canAccessStage(user,'technical-all') || authService.canAccessStage(user,'technical-new')) ? listTechnicalTickets() : Promise.resolve()
       ]);
       if (res.requests) {
         setRequests(res.requests);
@@ -144,56 +143,6 @@ export default function App() {
       setIsSyncing(false);
     }
   }, [showToast]);
-
-  // Automatic Background Two-Way Sync (Google Sheets → React)
-  // Protected against overlapping requests and paused on inactive tabs
-  useEffect(() => {
-    let isCancelled = false;
-    let isSyncingActive = false;
-
-    const performSyncCheck = async () => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      if (!isGoogleSheetsConnected() || !currentUser || isSyncingActive) return;
-
-      try {
-        isSyncingActive = true;
-        const fresh = await authService.refreshSession();
-        if (!isCancelled && JSON.stringify([fresh?.permissions,fresh?.systemAccess,fresh?.status,fresh?.role]) !== JSON.stringify([currentUser.permissions,currentUser.systemAccess,currentUser.status,currentUser.role])) setCurrentUser(fresh);
-        if (!SYSTEMS[0].stages.some(id => authService.canAccessStage(fresh,id))) return;
-        const syncResult = await dataService.checkSync();
-        if (!isCancelled && syncResult.hasChanges) {
-          if (syncResult.requests) {
-            setRequests(syncResult.requests);
-            setNextRequestNo(dataService.getNextRequestNumber(syncResult.requests));
-          }
-          if (syncResult.masterOptions) {
-            setMasterOptions(syncResult.masterOptions);
-          }
-          if (syncResult.users) {
-            authService.syncUsersFromSheet(syncResult.users);
-          }
-        }
-      } catch (err) {
-        console.warn('Background sync check note:', err);
-      } finally {
-        isSyncingActive = false;
-      }
-    };
-
-    const intervalMs = GOOGLE_SHEETS_CONFIG.realTimeSyncIntervalMs || 12000;
-    const intervalId = setInterval(performSyncCheck, intervalMs);
-
-    const handleFocus = () => {
-      performSyncCheck();
-    };
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      isCancelled = true;
-      clearInterval(intervalId);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [currentUser]);
 
   // Derived counts for sidebar and header
   const counts = useMemo(() => {
@@ -271,7 +220,8 @@ export default function App() {
   // Handler: Create Request
   const handleCreateRequest = async (formData) => {
     const res = await dataService.createRequest(formData);
-    const updated = res.allRequests || (await dataService.listRequests());
+    const created = res.newReq || res;
+    const updated = res.allRequests || [created, ...requests.filter(item => item.id !== created.id && item.requestNo !== created.requestNo)];
     const nextNo = dataService.getNextRequestNumber(updated);
     setRequests(updated);
     setNextRequestNo(nextNo);
@@ -282,7 +232,8 @@ export default function App() {
   // Handler: Introduce System Approve
   const handleApproveIntroduction = async (requestId, introData) => {
     const res = await dataService.approveIntroduction(requestId, introData);
-    const updated = res.allRequests || (await dataService.listRequests());
+    const changed = res.updatedReq || res;
+    const updated = res.allRequests || requests.map(item => item.id === requestId || item.requestNo === requestId ? { ...item, ...changed } : item);
     setRequests(updated);
     const targetNo = res.requestNo || res.updatedReq?.requestNo || requestId;
     showToast(`Introduction approved for ${targetNo}. Transferred to Create System: Pending.`, 'success');
@@ -291,7 +242,8 @@ export default function App() {
   // Handler: Update Development Progress
   const handleUpdateProgress = async (requestId, devData) => {
     const res = await dataService.updateDevelopmentProgress(requestId, devData);
-    const updated = res.allRequests || (await dataService.listRequests());
+    const changed = res.updatedReq || res;
+    const updated = res.allRequests || requests.map(item => item.id === requestId || item.requestNo === requestId ? { ...item, ...changed } : item);
     setRequests(updated);
     const targetReq = res.updatedReq || res;
 
@@ -312,7 +264,8 @@ export default function App() {
   // Handler: Complete MIS Update
   const handleCompleteMisUpdate = async (requestId, misData) => {
     const res = await dataService.completeMisUpdate(requestId, misData);
-    const updated = res.allRequests || (await dataService.listRequests());
+    const changed = res.updatedReq || res;
+    const updated = res.allRequests || requests.map(item => item.id === requestId || item.requestNo === requestId ? { ...item, ...changed } : item);
     setRequests(updated);
     const targetReq = res.updatedReq || res;
     showToast(`MIS updated for ${targetReq.requestNo}. Request is now Closed!`, 'success');

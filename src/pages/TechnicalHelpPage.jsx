@@ -7,6 +7,7 @@ import { dataService } from '../services/dataService';
 import { loadLocalUsers } from '../services/authService';
 import { GOOGLE_SHEETS_CONFIG } from '../config/integrationConfig';
 import { Pagination } from '../components/Pagination';
+import { CsvExportButton } from '../components/CsvExportButton';
 
 const formatDate = value => {
   if (!value) return '—';
@@ -79,7 +80,7 @@ const field = (name, label, _placeholder, required = true, textarea = false) => 
   const rows = resolved.filter(t => (!q || JSON.stringify(t).toLowerCase().includes(q.toLowerCase())) && (!requesterFilter || t.requester === requesterFilter));
   const paginatedRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   return <div className="flex-1 overflow-y-auto bg-[#f7f9fc] p-4 sm:p-6"><div className="w-full"><div className="mb-3 flex flex-wrap gap-2"><select aria-label="Filter by Requester" value={requesterFilter} onChange={e => { setRequesterFilter(e.target.value); setCurrentPage(1); }} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs"><option value="">All Requesters</option>{requesters.map(v => <option key={v}>{v}</option>)}</select></div>
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-bold text-slate-900">Raise Technical Help Ticket</h1><p className="mt-1 text-xs text-slate-500"></p></div><button type="button" onClick={() => { setOpen(true); setMessage(''); setError(''); }} className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"><PlusCircle className="h-4 w-4" />Raise Ticket</button></div>
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-bold text-slate-900">Raise Technical Help Ticket</h1><p className="mt-1 text-xs text-slate-500"></p></div><div className="flex flex-wrap items-center gap-2"><CsvExportButton rows={rows} filename="technical_help_resolved_history" /><button type="button" onClick={() => { setOpen(true); setMessage(''); setError(''); }} className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"><PlusCircle className="h-4 w-4" />Raise Ticket</button></div></div>
     {message && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">{message}</p>}
     <section className="rounded-lg border border-slate-200 bg-white shadow-xs"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><h2 className="text-sm font-bold text-slate-800">Resolved History <span className="ml-2 rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-600">{rows.length}</span></h2><div className="relative w-full sm:w-64"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input aria-label="Search history" placeholder="Search tickets..." value={q} onChange={e => setQ(e.target.value)} className="w-full rounded-md border border-slate-200 py-2 pl-9 pr-3 text-xs focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" /></div></div>
       {historyError && <p role="alert" className="m-4 rounded-lg bg-red-50 p-3 text-xs text-red-700">{historyError}</p>}

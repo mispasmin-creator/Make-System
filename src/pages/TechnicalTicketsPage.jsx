@@ -4,6 +4,7 @@ import { getCachedTechnicalTickets, subscribeTechnicalTickets, listTechnicalTick
 import { Modal } from '../components/Modal';
 import { Pagination } from '../components/Pagination';
 import { TechnicalTicketDetailsModal } from '../components/TechnicalTicketDetailsModal';
+import { CsvExportButton } from '../components/CsvExportButton';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -38,11 +39,9 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
 
   useEffect(() => {
     let active = true;
-    let refreshing = false;
     const unsubscribe = subscribeTechnicalTickets(data => { if (active) setTickets(data); });
     async function refresh() {
-      if (document.hidden || refreshing || pending.current.size) return;
-      refreshing = true;
+      if (pending.current.size) return;
       try {
         const data = await listTechnicalTickets();
         if (active) { setTickets(data); setError(''); }
@@ -56,16 +55,11 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
           });
         }
       }
-      finally { refreshing = false; if (active) setLoading(false); }
+      finally { if (active) setLoading(false); }
     }
     refresh();
-    const interval = setInterval(refresh, 10000);
-    window.addEventListener('focus', refresh);
-    document.addEventListener('visibilitychange', refresh);
     return () => {
-      active = false; unsubscribe(); clearInterval(interval);
-      window.removeEventListener('focus', refresh);
-      document.removeEventListener('visibilitychange', refresh);
+      active = false; unsubscribe();
     };
   }, [refreshKey]);
 
@@ -176,6 +170,7 @@ export function TechnicalTicketsPage({ refreshKey, canSubmit = false }) {
           </div>
         </label>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <CsvExportButton rows={rows} filename={`technical_tickets_${activeTab}`} />
           <select aria-label="Filter by Requester" value={requesterFilter} onChange={e => { setRequesterFilter(e.target.value); setCurrentPage(1); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs">
             <option value="">All Requesters</option>{requesters.map(v => <option key={v}>{v}</option>)}
           </select>

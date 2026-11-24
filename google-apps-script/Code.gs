@@ -1844,7 +1844,6 @@ function repairColumns(sheet) {
 function repairSheet() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Repair');
   if (!sheet) throw new Error('Repair sheet not found.');
-  repairColumns(sheet);
   return sheet;
 }
 
@@ -1871,21 +1870,33 @@ function repairAttachments(cellValue, meta) {
   });
 }
 
-function repairRows(sheet) {
-  if (sheet.getLastRow() < 7) return [];
-  var cols = repairColumns(sheet), count = sheet.getLastRow() - 6;
-  var values = sheet.getRange(7, 1, count, cols.width).getValues();
-  var notes = sheet.getRange(7, cols.serial, count, 1).getNotes();
+function repairRows(sheet, targetRow, suppliedCols) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 7 || (targetRow && targetRow > lastRow)) return [];
+  var cols = suppliedCols || repairColumns(sheet);
+  var firstRow = targetRow || 7;
+  var count = targetRow ? 1 : lastRow - 6;
+  var values = sheet.getRange(firstRow, 1, count, cols.width).getValues();
+  var notes = sheet.getRange(firstRow, cols.serial, count, 1).getNotes();
+  // Script Properties is a remote Apps Script service. Reading every row with
+  // getProperty() made large Repair sheets progressively slower. One bulk read
+  // keeps the same data contract with a single service call.
+  var allMeta = PropertiesService.getScriptProperties().getProperties();
   return values.map(function(r, i) {
     function get(k) { return cols[k] ? r[cols[k] - 1] : ''; }
     if (!get('serial')) return null;
-    var meta = readRepairMeta(String(get('serial')), notes[i][0]);
+    var serial = String(get('serial'));
+    var meta = parseJsonSafely(allMeta[REPAIR_META_PREFIX + serial], null);
+    if (!meta || typeof meta !== 'object') meta = parseJsonSafely(notes[i][0], {}) || {};
     function date(v) { return v instanceof Date ? v.toISOString() : String(v || ''); }
-    return { id:String(get('serial')), serial:String(get('serial')), requester:get('requester'), company:get('company'), description:get('description'), location:get('location'), createdAt:date(get('timestamp')), version:meta.version || 1, idempotencyKey:meta.idempotencyKey || '', approval:{ planned:date(get('approvalPlanned')), actual:date(get('approvalActual')), delay:get('approvalDelay') }, raisedBy:meta.raisedBy || '', attachments:repairAttachments(get('attachments'), meta), assessment:{ repairRequired:get('problem'), whereToSolve:get('whereToSolve'), assignedDeveloper:String(get('developer') || meta.assignedDeveloper || '') }, repair:{ planned:date(get('repairPlanned')), actual:date(get('repairActual')), status:get('status'), delay:get('repairDelay'), remarks:String(get('remark') || meta.remarks || '') }, management:{}, activity:[], sheetRow:i + 7 };
+    return { id:serial, serial:serial, requester:get('requester'), company:get('company'), description:get('description'), location:get('location'), createdAt:date(get('timestamp')), version:meta.version || 1, idempotencyKey:meta.idempotencyKey || '', approval:{ planned:date(get('approvalPlanned')), actual:date(get('approvalActual')), delay:get('approvalDelay') }, raisedBy:meta.raisedBy || '', attachments:repairAttachments(get('attachments'), meta), assessment:{ repairRequired:get('problem'), whereToSolve:get('whereToSolve'), assignedDeveloper:String(get('developer') || meta.assignedDeveloper || '') }, repair:{ planned:date(get('repairPlanned')), actual:date(get('repairActual')), status:get('status'), delay:get('repairDelay'), remarks:String(get('remark') || meta.remarks || '') }, management:{}, activity:[], sheetRow:firstRow + i };
   }).filter(function(r) { return r !== null; });
 }
 
-function fetchRepairIssues() { return repairRows(repairSheet()); }
+function fetchRepairIssues() {
+  var sheet = repairSheet(), cols = repairColumns(sheet);
+  return repairRows(sheet, 0, cols);
+}
 
 /** Menu action: moves JSON notes from the Sr No. cells into Script Properties and removes the notes. */
 function clearRepairNotes() {
@@ -1911,7 +1922,7 @@ function saveRepairIssue(action, payload) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    var sheet = repairSheet(), cols = repairColumns(sheet), issues = repairRows(sheet), data = payload.data || {}, row, issue;
+    var sheet = repairSheet(), cols = repairColumns(sheet), issues = repairRows(sheet, 0, cols), data = payload.data || {}, row, issue;
     var meta = {};
     var writes = []; // [columnKey, value]
     var serialValue = '';
@@ -1954,16 +1965,19 @@ function saveRepairIssue(action, payload) {
       }
     }
     // Preflight ALL targets before writing; never overwrite Planned/Time Delay columns or any existing formula.
+    var formulaRange = sheet.getRange(row, 1, 1, cols.width);
+    var rowFormulas = typeof formulaRange.getFormulas === 'function' ? formulaRange.getFormulas()[0] : null;
     writes.forEach(function(w) {
       var column = cols[w[0]];
-      if (!column || cols.protectedCols[column] || sheet.getRange(row, column).getFormula()) throw new Error('Repair formula protected at column ' + column);
+      var existingFormula = column && (rowFormulas ? rowFormulas[column - 1] : sheet.getRange(row, column).getFormula());
+      if (!column || cols.protectedCols[column] || existingFormula) throw new Error('Repair formula protected at column ' + column);
     });
     writes.forEach(function(w) { var value = w[1]; if (typeof value === 'string' && /^[=+@-]/.test(value)) value = "'" + value; sheet.getRange(row, cols[w[0]]).setValue(value); });
     writeRepairMeta(serialValue, meta);
     try { sheet.getRange(row, cols.serial).setNote(''); } catch (e) {}
     ['timestamp','approvalActual','repairActual'].forEach(function(key) { if (writes.some(function(w) { return w[0] === key; })) sheet.getRange(row, cols[key]).setNumberFormat('MM/dd/yyyy HH:mm:ss'); });
     SpreadsheetApp.flush();
-    return repairRows(sheet).filter(function(item) { return item.sheetRow === row; })[0];
+    return repairRows(sheet, row, cols)[0];
   } finally { lock.releaseLock(); }
 }
 

@@ -24,11 +24,14 @@ function Field({ label, children, wide }) {
   return <div className={wide ? 'sm:col-span-2' : ''}><dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</dt><dd className="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-slate-800">{children || '—'}</dd></div>;
 }
 
-export function RepairIssueDetailsModal({ issue, now, onClose }) {
+export function RepairIssueDetailsModal({ issue, now, onClose, onSubmit, submitLabel = 'Submit', showRemark = false, remark = '', onRemarkChange, remarkError = '', submitting = false }) {
   if (!issue) return null;
   const status = overallStatus(issue);
   return <Modal isOpen title={`Repair Issue: ${issue.serial}`} subtitle={`${issue.company || ''} • ${issue.requester || ''}`} large onClose={onClose}
-    footer={<button type="button" onClick={onClose} className="cursor-pointer rounded-xl bg-slate-100 px-5 py-2 text-xs font-semibold text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-slate-200/80">Close</button>}>
+    footer={<div className="flex items-center justify-end gap-2">
+      <button type="button" onClick={onClose} className="cursor-pointer rounded-xl bg-slate-100 px-5 py-2 text-xs font-semibold text-slate-700 transition-all hover:-translate-y-0.5 hover:bg-slate-200/80">Close</button>
+      {onSubmit && <button type="button" disabled={submitting} onClick={() => onSubmit(issue)} className="cursor-pointer rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-2 text-xs font-semibold text-white shadow-xs shadow-indigo-300/40 transition-all hover:-translate-y-0.5 hover:from-indigo-500 hover:to-indigo-600 disabled:cursor-default disabled:opacity-50">{submitting ? 'Submitting...' : submitLabel}</button>}
+    </div>}>
     <div className="space-y-4">
       <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
         <div className="flex flex-wrap items-center gap-2">
@@ -81,6 +84,21 @@ export function RepairIssueDetailsModal({ issue, now, onClose }) {
           <Field label="Sheet Status">{issue.repair?.status}</Field>
         </dl>
       </div>
+
+      {showRemark && <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 shadow-xs">
+        <label className="block text-xs font-bold text-slate-800">
+          Problem Resolve Remark <span className="text-rose-500">*</span>
+          <textarea
+            rows={4}
+            value={remark}
+            disabled={submitting}
+            onChange={event => onRemarkChange?.(event.target.value)}
+            placeholder="Enter resolution notes and steps taken"
+            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+          />
+        </label>
+        {remarkError && <p role="alert" className="mt-2 text-xs font-semibold text-rose-600">{remarkError}</p>}
+      </div>}
 
       {Boolean(issue.activity?.length) && <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
         <h3 className="mb-3 flex items-center gap-2 text-xs font-bold text-slate-800"><FileText className="h-4 w-4 text-indigo-500" />Activity Timeline</h3>

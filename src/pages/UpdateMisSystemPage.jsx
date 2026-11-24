@@ -5,6 +5,7 @@ import { Pagination } from '../components/Pagination';
 import { ImageAttachmentCell } from '../components/ImageAttachmentCell';
 import { formatDisplayDateTime } from '../utils/dateUtils';
 import { MisActionModal } from '../components/MisActionModal';
+import { CsvExportButton } from '../components/CsvExportButton';
 import { isMisPending, isSystemClosed } from '../utils/systemWorkflow.mjs';
 
 export function UpdateMisSystemPage({
@@ -85,6 +86,7 @@ export function UpdateMisSystemPage({
             Completed & Closed ({completedRequests.length})
           </button>
         </div>
+        <CsvExportButton rows={filteredActiveList} filename={`update_mis_${activeTab}`} />
       </div>
 
       <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200/70 bg-white p-3">

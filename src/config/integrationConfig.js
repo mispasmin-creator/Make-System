@@ -20,9 +20,6 @@ export const GOOGLE_SHEETS_CONFIG = {
     masterOptions: 'Master'
   },
 
-  // Polling interval in milliseconds for background real-time sync from Sheets to React
-  realTimeSyncIntervalMs: 30000,
-
   // Workflow & Reference Attachment Upload Settings
   attachments: {
     maxFileSizeBytes: 10 * 1024 * 1024, // 10MB limit
@@ -80,7 +77,7 @@ export function getIntegrationStatusSummary() {
     return {
       connected: true,
       label: 'Google Sheets Connected',
-      detail: `Real-time Two-Way Sync Active • ${shortUrl}`
+      detail: `Page-scoped Google Sheets sync active • ${shortUrl}`
     };
   }
   return {

@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 import { dataService } from '../services/dataService';
-import { technicalHelpService, getCachedTechnicalTickets, subscribeTechnicalTickets, listTechnicalTickets } from '../services/technicalHelpService';
+import { getCachedTechnicalTickets, subscribeTechnicalTickets, listTechnicalTickets } from '../services/technicalHelpService';
 import { repairService, getCachedRepairIssues, subscribeRepairIssues, enableRepairDemo, getRepairMode } from '../services/repairService';
 import { overallStatus, stageState } from '../utils/repairWorkflow.mjs';
 import { formatDisplayDate, formatDisplayDateTime } from '../utils/dateUtils';
@@ -64,24 +64,15 @@ export function DashboardPage({
   const [activeRepairDetails, setActiveRepairDetails] = useState(null);
   const [exportNotice, setExportNotice] = useState('');
 
-  // Subscribe to live Technical Tickets and Repair Issues
+  // Keep local caches connected without polling or loading inactive systems.
   useEffect(() => {
     let active = true;
     const unsubTech = subscribeTechnicalTickets(data => {
       if (active) setTechnicalTickets(data);
     });
-    listTechnicalTickets()
-      .then(data => {
-        if (active && Array.isArray(data)) setTechnicalTickets(data);
-      })
-      .catch(() => { });
-
     const unsubRepair = subscribeRepairIssues(data => {
       if (active) setRepairIssues(data);
     });
-    if (getRepairMode() === 'unconfigured') {
-      enableRepairDemo();
-    }
 
     return () => {
       active = false;
@@ -89,6 +80,22 @@ export function DashboardPage({
       unsubRepair();
     };
   }, []);
+
+  // Dashboard system data is fetched only when its tab is selected.
+  useEffect(() => {
+    let active = true;
+    if (activeTab === 'technical') {
+      listTechnicalTickets().then(data => {
+        if (active && Array.isArray(data)) setTechnicalTickets(data);
+      }).catch(() => {});
+    } else if (activeTab === 'repair') {
+      if (getRepairMode() === 'unconfigured') enableRepairDemo();
+      repairService.listIssues().then(data => {
+        if (active && Array.isArray(data)) setRepairIssues(data);
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [activeTab]);
 
   // --- MAKE SYSTEM METRICS ---
   const makeMetrics = useMemo(() => {

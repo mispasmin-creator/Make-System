@@ -35,6 +35,7 @@ import { UserDetailsModal } from '../components/UserDetailsModal';
 import { BulkAccessModal } from '../components/BulkAccessModal';
 import { ROLE_OPTIONS } from '../utils/accessPresets.mjs';
 import { formatDisplayDateTime } from '../utils/dateUtils';
+import { CsvExportButton } from '../components/CsvExportButton';
 
 export function AdminMasterPage({ currentUser, showToast }) {
   const [users, setUsers] = useState(() => loadLocalUsers());
@@ -113,6 +114,7 @@ export function AdminMasterPage({ currentUser, showToast }) {
       return true;
     });
   }, [users, roleFilter, statusFilter, searchQuery]);
+  const exportUsers = useMemo(() => filteredUsers.map(user => Object.fromEntries(Object.entries(user).filter(([key]) => key !== 'password'))), [filteredUsers]);
 
   // Handlers
   const allFilteredSelected = filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.has(u.id));
@@ -214,6 +216,7 @@ export function AdminMasterPage({ currentUser, showToast }) {
           </div>
 
           <div className="flex items-center gap-2.5">
+            <CsvExportButton rows={exportUsers} filename="admin_users" />
             <button
               type="button"
               onClick={handleManualSheetSync}
