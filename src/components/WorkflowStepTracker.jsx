@@ -3,10 +3,11 @@ import { Check, Clock, AlertTriangle } from 'lucide-react';
 import { STAGES } from '../constants/stages';
 
 const WORKFLOW_STEPS = [
-  { id: 'introduce', label: 'Introduce System', stage: STAGES.INTRODUCE },
+  { id: 'requests', label: 'System Request' },
+  { id: 'assign', label: 'Assign System', stage: STAGES.ASSIGN },
   { id: 'create', label: 'Create System', stage: STAGES.CREATE },
-  { id: 'mis', label: 'Update MIS', stage: STAGES.UPDATE_MIS },
-  { id: 'closed', label: 'Closed', stage: STAGES.CLOSED }
+  { id: 'introduce', label: 'Introduce System', stage: STAGES.INTRODUCE },
+  { id: 'mis', label: 'Update in MIS System', stage: STAGES.UPDATE_MIS }
 ];
 
 export function WorkflowStepTracker({ currentStage, isHold = false }) {
@@ -15,6 +16,8 @@ export function WorkflowStepTracker({ currentStage, isHold = false }) {
   // Determine index of current stage
   const getStageIndex = () => {
     switch (currentStage) {
+      case STAGES.ASSIGN:
+        return steps.findIndex(s => s.id === 'assign');
       case STAGES.INTRODUCE:
         return steps.findIndex(s => s.id === 'introduce');
       case STAGES.CREATE:
@@ -26,7 +29,7 @@ export function WorkflowStepTracker({ currentStage, isHold = false }) {
       case STAGES.UPDATE_MIS:
         return steps.findIndex(s => s.id === 'mis');
       case STAGES.CLOSED:
-        return steps.findIndex(s => s.id === 'closed');
+        return steps.findIndex(s => s.id === 'mis');
       default:
         return 0;
     }
@@ -35,8 +38,8 @@ export function WorkflowStepTracker({ currentStage, isHold = false }) {
   const currentIndex = getStageIndex();
 
   return (
-    <div className="w-full py-4 px-5 bg-white border border-slate-100/90 rounded-2xl shadow-[0_4px_16px_-2px_rgba(15,23,42,0.03)]">
-      <div className="flex items-center justify-between relative">
+    <div className="w-full overflow-x-auto py-4 px-5 bg-white border border-slate-100/90 rounded-2xl shadow-[0_4px_16px_-2px_rgba(15,23,42,0.03)]">
+      <div className="flex items-center justify-between relative min-w-[580px]">
         {steps.map((step, idx) => {
           const isDone = idx < currentIndex || currentStage === STAGES.CLOSED;
           const isCurrent = idx === currentIndex && currentStage !== STAGES.CLOSED;

@@ -130,7 +130,7 @@ function getInitialSampleData() {
         },
         {
           id: 'act-2',
-          action: 'Introduction Approved',
+          action: 'Assignment Approved',
           actor: 'Anil Kumar (Admin)',
           timestamp: subDays(10) + 'T11:00:00.000Z',
           details: 'Kickoff meeting completed. Moved to Create System.'
@@ -209,7 +209,7 @@ function getInitialSampleData() {
         },
         {
           id: 'act-22',
-          action: 'Introduction Approved',
+          action: 'Assignment Approved',
           actor: 'Anil Kumar (Admin)',
           timestamp: subDays(7) + 'T10:00:00.000Z',
           details: 'Introduction completed. Moved to Create System.'
@@ -294,7 +294,7 @@ function getInitialSampleData() {
         },
         {
           id: 'act-32',
-          action: 'Introduction Approved',
+          action: 'Assignment Approved',
           actor: 'Anil Kumar (Admin)',
           timestamp: subDays(14) + 'T15:00:00.000Z',
           details: 'Introduction completed.'
@@ -331,8 +331,9 @@ function getInitialSampleData() {
       businessPurpose: 'Standardize QC batch release criteria and prevent defective mineral batches from entering production kilns.',
       assignedDeveloper: 'Sneha Iyer (Frontend & UI Engineer)',
       targetCompletionDate: addDays(12),
-      currentStage: STAGES.INTRODUCE,
-      currentStatus: 'Introduce: Pending',
+      currentStage: STAGES.ASSIGN,
+      workflowVersion: 2,
+      currentStatus: 'Assign System: Pending',
       workStatus: null,
       progressPercent: 0,
       currentRevisionNo: null,
@@ -411,7 +412,7 @@ function getInitialSampleData() {
         },
         {
           id: 'act-52',
-          action: 'Introduction Approved',
+          action: 'Assignment Approved',
           actor: 'Anil Kumar (Admin)',
           timestamp: subDays(12) + 'T14:00:00.000Z',
           details: 'Introduction completed.'
@@ -484,7 +485,7 @@ function getInitialSampleData() {
         },
         {
           id: 'act-62',
-          action: 'Introduction Approved',
+          action: 'Assignment Approved',
           actor: 'Anil Kumar (Admin)',
           timestamp: subDays(16) + 'T10:00:00.000Z',
           details: 'Introduction completed.'
@@ -569,7 +570,7 @@ function getInitialSampleData() {
         },
         {
           id: 'act-72',
-          action: 'Introduction Approved',
+          action: 'Assignment Approved',
           actor: 'Anil Kumar (Admin)',
           timestamp: subDays(25) + 'T11:00:00.000Z',
           details: 'Introduction completed.'
@@ -671,6 +672,11 @@ function loadStoredRequests() {
     console.error('Failed to load stored requests:', err);
     return getInitialSampleData().map(normalizeLegacyStage).map(cleanLocalNames);
   }
+}
+
+function getRequestReference(requestId) {
+  const request = loadStoredRequests().find(r => r.id === requestId || r.requestNo === requestId);
+  return request ? { requestNo: request.requestNo, sheetRowIndex: request.sheetRowIndex } : {};
 }
 
 function saveStoredRequests(requests) {
@@ -1043,9 +1049,10 @@ export const dataService = {
         businessPurpose,
         assignedDeveloper,
         targetCompletionDate,
-        currentStage: STAGES.INTRODUCE,
-        currentStatus: 'Introduce: Pending',
-        workStatus: 'Pending Kickoff',
+        currentStage: STAGES.ASSIGN,
+      workflowVersion: 2,
+        currentStatus: 'Assign System: Pending',
+        workStatus: 'Pending Assignment',
         progressPercent: 0,
         introduction: { isCompleted: false },
         testingHistory: [],
@@ -1093,12 +1100,13 @@ export const dataService = {
       businessPurpose,
       assignedDeveloper,
       targetCompletionDate,
-      currentStage: STAGES.INTRODUCE,
-      currentStatus: 'Introduce: Pending',
+      currentStage: STAGES.ASSIGN,
+      workflowVersion: 2,
+      currentStatus: 'Assign System: Pending',
       workStatus: null,
       progressPercent: 0,
       currentRevisionNo: null,
-      latestRemarks: 'New request created. Pending Introduce System kickoff meeting.',
+      latestRemarks: 'New request created. Pending Assign System approval.',
       introduction: {
         isCompleted: false,
         meetingDate: null,
@@ -1131,12 +1139,13 @@ export const dataService = {
   },
 
   /**
-   * Introduce System - Approve & Submit
+   * Assign System - Approve & Submit (legacy API name retained)
    */
   async approveIntroduction(requestId, { assignedDeveloper, targetCompletionDate, remarks }) {
     if (isGoogleSheetsConnected()) {
       const res = await callGoogleAppsScript('approveIntroduction', {
         requestId,
+        ...getRequestReference(requestId),
         data: {
           assignedDeveloper,
           targetCompletionDate,
@@ -1195,17 +1204,17 @@ export const dataService = {
       revisionNo: null,
       status: WORK_STATUS.IN_PROGRESS,
       progressPercent: 0,
-      remarks: `Introduction approved. ${remarks}`,
+      remarks: `Assignment approved. ${remarks}`,
       updatedAt: nowISO,
       updatedBy: CURRENT_USER.name
     });
 
     req.activityLog.push({
       id: `act-${Date.now()}`,
-      action: 'Introduction Approved',
+      action: 'Assignment Approved',
       actor: CURRENT_USER.name,
       timestamp: nowISO,
-      details: `Introduction approved. Remarks: "${remarks}". Moved to Create System: Pending.`
+      details: `Assignment approved. Remarks: "${remarks}". Moved to Create System: Pending.`
     });
 
     saveStoredRequests(requests);
@@ -1218,21 +1227,39 @@ export const dataService = {
   async updateDevelopmentProgress(requestId, { workStatus, progressPercent, remarks, holdReason, extendedTargetDate, holdExtendTargetDate, systemUrl, adminId, adminPassword }) {
     const finalHoldExtendDate = holdExtendTargetDate || extendedTargetDate || null;
     if (isGoogleSheetsConnected()) {
-      const res = await callGoogleAppsScript('updateDevelopmentProgress', {
-        requestId,
-        data: {
-          workStatus,
-          progressPercent,
-          remarks,
-          holdReason,
-          holdExtendTargetDate: finalHoldExtendDate,
-          extendedTargetDate: finalHoldExtendDate,
-          systemUrl: systemUrl || '',
-          adminId: adminId || '',
-          adminPassword: adminPassword || '',
-          updatedBy: CURRENT_USER.name
+      const action = workStatus === WORK_STATUS.COMPLETED ? 'completeDevelopment' : 'updateDevelopmentProgress';
+      let res;
+      try {
+        res = await callGoogleAppsScript(action, {
+          requestId,
+          ...getRequestReference(requestId),
+          data: {
+            workStatus,
+            progressPercent,
+            remarks,
+            holdReason,
+            holdExtendTargetDate: finalHoldExtendDate,
+            extendedTargetDate: finalHoldExtendDate,
+            systemUrl: systemUrl || '',
+            adminId: adminId || '',
+            adminPassword: adminPassword || '',
+            updatedBy: CURRENT_USER.name,
+            workflowVersion: 2
+          }
+        });
+      } catch (err) {
+        if (action === 'completeDevelopment' && /Unhandled action|Unknown action/i.test(err.message || '')) {
+          throw new Error('The live Apps Script URL is still using an older deployment. Deploy the updated Code.gs using Deploy > Manage deployments > Edit > New version, then retry.');
         }
-      });
+        throw err;
+      }
+      // Some deployments return only success/version after writing. Read the
+      // saved row before updating the UI rather than rejecting a successful save.
+      if (!res.request) {
+        const saved = await callGoogleAppsScript('getRequest', { requestId, ...getRequestReference(requestId) }, 'GET');
+        res.request = saved.request;
+      }
+      if (!res.request) throw new Error('Save response did not include the request. Refresh the sheet records to check the saved status.');
       if (res.version) cachedSyncVersion = res.version;
       const currentList = loadStoredRequests();
       const updatedReq = res.request || currentList.find(r => r.id === requestId || r.requestNo === requestId);
@@ -1310,6 +1337,8 @@ export const dataService = {
         updatedBy: CURRENT_USER.name
       });
     } else if (workStatus === WORK_STATUS.COMPLETED) {
+      req.workflowVersion = 2;
+      req.systemIntroduction = { isCompleted: false };
       finalProgress = 100;
       req.workStatus = WORK_STATUS.COMPLETED;
       req.progressPercent = 100;
@@ -1318,17 +1347,17 @@ export const dataService = {
       const linkNote = systemUrl ? ` System Link: ${systemUrl}.` : '';
 
       if (req.currentRevisionNo) {
-        req.currentStage = STAGES.UPDATE_MIS;
-        req.currentStatus = 'Update MIS: Pending';
-        req.latestRemarks = remarks || 'Revision completed. Transferred to Update MIS System.';
+        req.currentStage = STAGES.INTRODUCE;
+        req.currentStatus = 'Introduce System: Pending';
+        req.latestRemarks = remarks || 'Revision completed. Transferred to Introduce System.';
         activityAction = 'Revision Completed';
-        activityDetails = `Revision ${req.currentRevisionNo} completed (100%).${linkNote} Sent to Update MIS System.`;
+        activityDetails = `Revision ${req.currentRevisionNo} completed (100%).${linkNote} Sent to Introduce System.`;
       } else {
-        req.currentStage = STAGES.UPDATE_MIS;
-        req.currentStatus = 'Update MIS: Pending';
-        req.latestRemarks = remarks || 'Development completed. Sent to Update MIS System.';
+        req.currentStage = STAGES.INTRODUCE;
+        req.currentStatus = 'Introduce System: Pending';
+        req.latestRemarks = remarks || 'Development completed. Sent to Introduce System.';
         activityAction = 'Development Completed';
-        activityDetails = `Cycle ${currentCycle} completed (100%).${linkNote} Sent to Update MIS System.`;
+        activityDetails = `Cycle ${currentCycle} completed (100%).${linkNote} Sent to Introduce System.`;
       }
 
       req.developmentHistory.push({
@@ -1365,6 +1394,7 @@ export const dataService = {
     if (isGoogleSheetsConnected()) {
       const res = await callGoogleAppsScript('submitTestingDecision', {
         requestId,
+        ...getRequestReference(requestId),
         data: {
           decision,
           remarks,
@@ -1470,13 +1500,46 @@ export const dataService = {
     return Object.assign(req, { allRequests: requests, updatedReq: req });
   },
 
+  /** Complete the separate post-development introduction step. */
+  async completeIntroduction(requestId, { remarks }) {
+    if (!remarks?.trim()) throw new Error('Introduction remarks are required');
+    if (isGoogleSheetsConnected()) {
+      const res = await callGoogleAppsScript('completeIntroduction', {
+        requestId, ...getRequestReference(requestId), data: { remarks: remarks.trim(), updatedBy: CURRENT_USER.name }
+      });
+      if (!res.request?.systemIntroduction?.isCompleted) throw new Error('The Apps Script backend must be updated to support the introduction step.');
+      if (res.version) cachedSyncVersion = res.version;
+      const updatedReq = res.request;
+      const allRequests = loadStoredRequests().map(r => (r.id === requestId || r.requestNo === requestId) ? { ...r, ...updatedReq } : r);
+      saveStoredRequests(allRequests);
+      return { ...updatedReq, updatedReq, allRequests };
+    }
+    const requests = loadStoredRequests();
+    const req = requests.find(r => r.id === requestId || r.requestNo === requestId);
+    if (!req || req.currentStage !== STAGES.INTRODUCE) throw new Error('Only systems pending introduction can be introduced');
+    const now = getNowKolkataISO();
+    req.workflowVersion = 2;
+    req.systemIntroduction = { isCompleted: true, remarks: remarks.trim(), completedAt: now, completedBy: CURRENT_USER.name };
+    req.currentStage = STAGES.UPDATE_MIS;
+    req.currentStatus = 'Update MIS: Pending';
+    req.lastUpdatedAt = now;
+    req.latestRemarks = remarks.trim();
+    req.activityLog = [...(req.activityLog || []), { id: 'act-' + Date.now(), action: 'System Introduced', actor: CURRENT_USER.name, timestamp: now, details: remarks.trim() + '. Sent to Update in MIS System.' }];
+    saveStoredRequests(requests);
+    return { ...req, updatedReq: req, allRequests: requests };
+  },
+
   /**
    * Update MIS System - Submit MIS Update Remarks
    */
   async completeMisUpdate(requestId, { remarks }) {
+    if (!remarks?.trim()) throw new Error('MIS update remarks are required');
+    const current = loadStoredRequests().find(r => r.id === requestId || r.requestNo === requestId);
+    if (current && current.currentStage !== STAGES.UPDATE_MIS) throw new Error('Only systems pending MIS update can be closed');
     if (isGoogleSheetsConnected()) {
       const res = await callGoogleAppsScript('completeMisUpdate', {
         requestId,
+        ...getRequestReference(requestId),
         data: {
           remarks,
           updatedBy: CURRENT_USER.name
@@ -1519,6 +1582,7 @@ export const dataService = {
     });
 
     saveStoredRequests(requests);
+    return { ...req, updatedReq: req, allRequests: requests };
   },
 
   /**

@@ -18,6 +18,7 @@ import { authService } from '../services/authService';
 const ICON_MAP = {
   dashboard: BarChart3,
   requests: ClipboardList,
+  assign: Handshake,
   introduce: Handshake,
   create: Code2,
   mis: Database,
@@ -105,7 +106,7 @@ export function Sidebar({
             </div>
           )}
 
-          {!isCollapsed && visibleNavItems.some(item => ['requests','introduce','create','mis'].includes(item.id)) && <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Make System</div>}
+          {!isCollapsed && visibleNavItems.some(item => ['requests','assign','create','introduce','mis'].includes(item.id)) && <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Make System</div>}
           {visibleNavItems.map((item) => {
             if (item.id === 'dashboard') return null;
             if (item.id === 'repair-system') return null;
@@ -117,6 +118,7 @@ export function Sidebar({
             let isDanger = false;
 
             if (item.id === 'requests') count = counts.totalRequests || 0;
+            else if (item.id === 'assign') count = counts.assignPending || 0;
             else if (item.id === 'introduce') count = counts.introducePending || 0;
             else if (item.id === 'create') count = counts.createPending || 0;
             else if (item.id === 'mis') count = counts.misPending || 0;

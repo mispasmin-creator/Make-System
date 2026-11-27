@@ -5,13 +5,13 @@ import { Pagination } from '../components/Pagination';
 import { ImageAttachmentCell } from '../components/ImageAttachmentCell';
 import { formatDisplayDate, formatDisplayDateTime } from '../utils/dateUtils';
 import { IntroduceActionModal } from '../components/IntroduceActionModal';
+import { STAGES } from '../constants/stages';
 import { CsvExportButton } from '../components/CsvExportButton';
 
 export function IntroduceSystemPage({
   requests = [],
-  onApproveIntroduction,
+  onCompleteIntroduction,
   onViewDetails,
-  developerOptions = [],
   canApprove = true
 }) {
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'completed'
@@ -24,11 +24,11 @@ export function IntroduceSystemPage({
   const [developerFilter, setDeveloperFilter] = useState('');
 
   const pendingRequests = useMemo(() => {
-    return requests.filter(r => !r.introduction?.isCompleted);
+    return requests.filter(r => r.currentStage === STAGES.INTRODUCE);
   }, [requests]);
 
   const completedRequests = useMemo(() => {
-    return requests.filter(r => r.introduction?.isCompleted);
+    return requests.filter(r => r.systemIntroduction?.isCompleted);
   }, [requests]);
 
   const activeList = activeTab === 'pending' ? pendingRequests : completedRequests;
@@ -142,7 +142,7 @@ export function IntroduceSystemPage({
                       <span>•</span>
                       <span className="truncate">{req.companyName}</span>
                       <span>•</span>
-                      <span className="text-slate-400 truncate">{formatDisplayDate(req.createdAt)}</span>
+                      <span className="text-slate-400 truncate">{formatDisplayDate(req.developmentCompletedAt || req.createdAt)}</span>
                     </div>
                   </div>
                 </div>
@@ -159,7 +159,7 @@ export function IntroduceSystemPage({
                       }}
                       className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs active:scale-95 transition-all whitespace-nowrap cursor-pointer"
                     >
-                      Approve
+                      Introduce
                     </button>
                   ) : (
                     <button
@@ -229,7 +229,7 @@ export function IntroduceSystemPage({
                 {activeTab === 'pending' ? (
                   <>
                     <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Created At
+                      Development Completed At
                     </th>
                   </>
                 ) : (
@@ -241,10 +241,10 @@ export function IntroduceSystemPage({
                       Target Date
                     </th>
                     <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Discussion Remarks
+                      Introduction Remarks
                     </th>
                     <th className="px-3.5 py-3 font-semibold text-slate-600 uppercase tracking-wider text-[11px] whitespace-nowrap">
-                      Approved By & Time
+                      Introduced By & Time
                     </th>
                   </>
                 )}
@@ -262,8 +262,8 @@ export function IntroduceSystemPage({
                       </span>
                       <span className="text-[11px]">
                         {activeTab === 'pending'
-                          ? 'Newly submitted system requests will automatically queue here.'
-                          : 'Approved kickoff meetings will be archived here.'}
+                          ? 'Systems completed in Create System will automatically queue here.'
+                          : 'Completed introductions will be archived here.'}
                       </span>
                     </div>
                   </td>
@@ -284,7 +284,7 @@ export function IntroduceSystemPage({
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs shadow-indigo-300/40 hover:shadow-sm hover:-translate-y-0.5 transition-all cursor-pointer"
                           >
                             <Check className="w-3 h-3" />
-                            <span>Approve</span>
+                            <span>Introduce</span>
                           </button>
                         )}
                         <button
@@ -326,7 +326,7 @@ export function IntroduceSystemPage({
                     {activeTab === 'pending' ? (
                       <>
                         <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-500">
-                          {formatDisplayDateTime(req.createdAt)}
+                          {formatDisplayDateTime(req.developmentCompletedAt || req.createdAt)}
                         </td>
                       </>
                     ) : (
@@ -340,12 +340,12 @@ export function IntroduceSystemPage({
                             <StatusBadge type="due" targetDate={req.targetCompletionDate} />
                           </div>
                         </td>
-                        <td className="px-3.5 py-2.5 max-w-xs truncate text-slate-700" title={req.introduction?.remarks}>
-                          {req.introduction?.remarks}
+                        <td className="px-3.5 py-2.5 max-w-xs truncate text-slate-700" title={req.systemIntroduction?.remarks}>
+                          {req.systemIntroduction?.remarks}
                         </td>
                         <td className="px-3.5 py-2.5 whitespace-nowrap text-slate-500">
-                          <div>{req.introduction?.completedBy}</div>
-                          <span className="text-[10px] text-slate-400">{formatDisplayDateTime(req.introduction?.completedAt)}</span>
+                          <div>{req.systemIntroduction?.completedBy}</div>
+                          <span className="text-[10px] text-slate-400">{formatDisplayDateTime(req.systemIntroduction?.completedAt)}</span>
                         </td>
                       </>
                     )}
@@ -376,8 +376,7 @@ export function IntroduceSystemPage({
             setSelectedRequest(null);
           }}
           request={selectedRequest}
-          developerOptions={developerOptions}
-          onSubmit={onApproveIntroduction}
+          onSubmit={onCompleteIntroduction}
         />
       )}
     </div>

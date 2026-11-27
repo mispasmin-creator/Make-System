@@ -297,7 +297,7 @@ export function CreateSystemPage({
                       </span>
                       <span className="text-[11px]">
                         {activeTab === 'pending'
-                          ? 'Approve an introduction to begin development.'
+                          ? 'Approve an assignment to begin development.'
                           : 'Completed development requests will appear here.'}
                       </span>
                     </div>

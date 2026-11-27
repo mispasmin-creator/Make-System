@@ -45,7 +45,7 @@ export function MisActionModal({ isOpen, onClose, request, onSubmit }) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Update MIS System: ${request.requestNo}`}
+      title={`Update in MIS System: ${request.requestNo}`}
       subtitle={`${request.companyName} • Final Cataloging & Closure`}
       footer={
         <>

@@ -112,7 +112,7 @@ export function CreateActionModal({ isOpen, onClose, request, onSubmit }) {
             ) : isDone ? (
               <>
                 <Check className="w-4 h-4" />
-                <span>Complete &amp; Send to Update MIS</span>
+                <span>Complete &amp; Send to Introduce System</span>
               </>
             ) : isHold ? (
               <>
@@ -292,7 +292,7 @@ export function CreateActionModal({ isOpen, onClose, request, onSubmit }) {
                 <span>Development Complete (100% Progress)</span>
               </span>
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
-                Ready for Testing
+                Ready for Introduction
               </span>
             </div>
 
@@ -357,7 +357,7 @@ export function CreateActionModal({ isOpen, onClose, request, onSubmit }) {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     id="adminPasswordInput"
-                    placeholder="Admin password for testing"
+                    placeholder="Admin password for system access"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200/90 rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 shadow-2xs transition-all font-mono"
@@ -382,7 +382,7 @@ export function CreateActionModal({ isOpen, onClose, request, onSubmit }) {
               <textarea
                 id="completionRemarks"
                 rows={2}
-                placeholder="Deployment details, staging build version, or testing instructions for QA..."
+                placeholder="Deployment details, build version, or handover instructions for introduction..."
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 className="w-full px-3.5 py-2 bg-white border border-slate-200/80 rounded-xl text-slate-800 text-sm focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400 shadow-2xs transition-all"

@@ -3,6 +3,7 @@
  */
 
 export const STAGES = {
+  ASSIGN: 'Assign System',
   INTRODUCE: 'Introduce System',
   CREATE: 'Create System',
   REVISE: 'Revise System',
@@ -63,7 +64,8 @@ export const NAV_ITEMS = [
   { id: 'requests', label: 'System Requests', icon: 'file-text' },
   { id: 'technical-new', label: 'Raise Technical Help', icon: 'life-buoy' },
   { id: 'technical-all', label: 'All Technical Tickets', icon: 'clipboard-list' },
-  { id: 'introduce', label: 'Introduce System', icon: 'handshake' },
+  { id: 'assign', label: 'Assign System', icon: 'handshake' },
   { id: 'create', label: 'Create System', icon: 'code' },
-  { id: 'mis', label: 'Update MIS System', icon: 'database' }
+  { id: 'introduce', label: 'Introduce System', icon: 'handshake' },
+  { id: 'mis', label: 'Update in MIS System', icon: 'database' }
 ];

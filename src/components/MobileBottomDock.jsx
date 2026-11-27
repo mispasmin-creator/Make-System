@@ -14,7 +14,7 @@ export function MobileBottomDock({
   onOpenSidebar,
   currentUser
 }) {
-  const isMake = ['requests', 'introduce', 'create', 'mis'].includes(activePage);
+  const isMake = ['requests', 'assign', 'create', 'introduce', 'mis'].includes(activePage);
   const isTech = ['technical-new', 'technical-all'].includes(activePage);
   const isRepair = activePage.startsWith('repair');
   const isDash = activePage === 'dashboard';

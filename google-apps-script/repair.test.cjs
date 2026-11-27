@@ -7,6 +7,7 @@ const col = (name, n = 0) => headers.reduce((acc, h, i) => h === name ? [...acc,
 const rows = [Array(17).fill('')];
 const notes = {};
 const props = {};
+let targetedSave = false;
 const formulaCols = [8, 10, 14, 16]; // H, J, N, P: Planned / Time Delay
 const formulas = Object.fromEntries(formulaCols.map(c => [`7:${c}`, '=1+1']));
 const before = JSON.stringify(formulas), writes = [];
@@ -23,7 +24,7 @@ const sheet = {
 const context = {
   SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:()=>sheet}),flush(){}},
   LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
-  PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]||null,setProperty:(k,v)=>{props[k]=v;},getProperties:()=>({...props})})}
+  PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]||null,setProperty:(k,v)=>{props[k]=v;},getProperties:()=>{ if(targetedSave)throw new Error('Repair update must not read all metadata');return {...props}; }})}
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(`${__dirname}/Code.gs`,'utf8'),context);
@@ -38,7 +39,10 @@ const count = writes.length;
 assert.equal(context.saveRepairIssue('createRepairIssue',create).serial,issue.serial);
 assert.equal(writes.length,count);
 assert.throws(()=>context.saveRepairIssue('approveRepairIssue',{id:issue.id,expectedVersion:1,data:{repairRequired:'Yes',whereToSolve:'Workshop',assignedDeveloper:'Nobody'}}),/Master/);
+targetedSave = true;
 issue = context.saveRepairIssue('approveRepairIssue',{id:issue.id,expectedVersion:1,data:{repairRequired:'Yes',whereToSolve:'Workshop',assignedDeveloper:'Ahitesh Tandon'}});
+targetedSave = false;
+targetedSave = false;
 assert.equal(issue.assessment.assignedDeveloper,'Ahitesh Tandon');
 assert.equal(rows[0][col('Assign Developer')-1],'Ahitesh Tandon', 'Developer is saved in the Assign Developer column');
 assert.equal(rows[0][col('Where Have To Solve')-1],'Workshop');
@@ -50,7 +54,9 @@ assert(issue.approval.actual);
 assert.equal(issue.repair.status,'Pending Repair');
 assert.throws(()=>context.saveRepairIssue('resolveRepairIssue',{id:issue.id,expectedVersion:1,data:{remarks:'Fixed'}}),/changed/);
 assert.throws(()=>context.saveRepairIssue('resolveRepairIssue',{id:issue.id,expectedVersion:2,data:{remarks:' '}}),/Remark/);
+targetedSave = true;
 issue = context.saveRepairIssue('resolveRepairIssue',{id:issue.id,expectedVersion:2,data:{remarks:'Fixed cable'}});
+targetedSave = false;
 assert.equal(issue.repair.remarks,'Fixed cable');
 assert.equal(issue.repair.status,'Resolved');
 assert.equal(rows[0][16],'Resolved');

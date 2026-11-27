@@ -1,5 +1,5 @@
 export const SYSTEMS = [
-  { id: 'make', label: 'Make System', stages: ['requests', 'introduce', 'create', 'mis'] },
+  { id: 'make', label: 'Make System', stages: ['requests', 'assign', 'create', 'introduce', 'mis'] },
   { id: 'technical', label: 'Technical Help', stages: ['technical-new', 'technical-all'] },
   { id: 'repair', label: 'Repair System', stages: ['repair-new', 'repair-approval', 'repair-work'] }
 ];
@@ -12,7 +12,8 @@ export function normalizeAccess(user) {
     const enabled = admin || (user.systemAccess?.[system.id] ?? system.stages.some(id => user.permissions?.[id]?.view));
     systemAccess[system.id] = Boolean(enabled);
     for (const id of system.stages) {
-      const old = user.permissions?.[id] || {};
+      // Existing introduction permissions belonged to the assignment page.
+      const old = user.permissions?.[id] || (id === 'assign' ? user.permissions?.introduce : null) || {};
       const view = enabled && (admin || Boolean(old.view));
       const update = view && (admin || Boolean(old.update));
       permissions[id] = { view: Boolean(view), update: Boolean(update), edit: admin, approve: Boolean(update) };

@@ -78,6 +78,8 @@ assert.throws(()=>context.authorizeAppAction('updateDevelopmentProgress',ea.toke
 assert.throws(()=>context.authorizeAppAction('updateUser',ea.token),/Only Admin/);
 const dme=context.loginAppUser({username:'dme1',password:'dme123'});
 context.authorizeAppAction('updateDevelopmentProgress',dme.token);
+context.authorizeAppAction('completeDevelopment',dme.token);
+assert.throws(()=>context.authorizeAppAction('completeDevelopment',ea.token),/denied/);
 context.authorizeAppAction('resolveRepairIssue',dme.token);
 assert.throws(()=>context.authorizeAppAction('approveIntroduction',dme.token),/denied/);
 context.authorizeAppAction('updateUser',context.loginAppUser({username:'boss',password:'boss123'}).token);

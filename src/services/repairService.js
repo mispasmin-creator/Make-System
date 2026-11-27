@@ -72,7 +72,7 @@ async function updateIssue(action, method, id, data, user, expectedVersion) {
   assertReady(); assertPermission(user, action);
   if (!demo) {
     // Adapter must validate the authenticated session, role, expectedVersion and idempotency on the server.
-    const result = await adapter[method]({ id, data, expectedVersion });
+    const result = await adapter[method]({ id, data, expectedVersion, sheetRow: cache.find(issue => issue.id === id)?.sheetRow });
     revision++; cache = cache.map(issue => issue.id === id ? result : issue); emit(); return result;
   }
   return demoWrite(store => {

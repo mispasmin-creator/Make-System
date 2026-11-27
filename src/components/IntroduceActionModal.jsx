@@ -1,33 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Check, AlertCircle } from 'lucide-react';
 import { Modal } from './Modal';
-import { formatToKolkataDateString } from '../utils/dateUtils';
-import { SearchableSelect } from './SearchableSelect';
 
-export function IntroduceActionModal({ isOpen, onClose, request, onSubmit, developerOptions = [] }) {
-  const [assignedDeveloper, setAssignedDeveloper] = useState('');
-  const [targetCompletionDate, setTargetCompletionDate] = useState('');
+export function IntroduceActionModal({ isOpen, onClose, request, onSubmit }) {
   const [remarks, setRemarks] = useState('');
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isOpen && request) {
-      setAssignedDeveloper(request.assignedDeveloper || '');
-      setTargetCompletionDate(request.targetCompletionDate || '');
+    if (isOpen) {
       setRemarks('');
       setErrors({});
       setIsSubmitting(false);
     }
-  }, [isOpen, request]);
+  }, [isOpen]);
 
   if (!request) return null;
 
   function validate() {
     const errs = {};
-    if (!assignedDeveloper) errs.assignedDeveloper = 'Developer assignment is required';
-    if (!targetCompletionDate) errs.targetCompletionDate = 'Target completion date is required';
-    if (!remarks.trim()) errs.remarks = 'Discussion / Follow-up Remarks are required';
+    if (!remarks.trim()) errs.remarks = 'Introduction Remarks are required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -39,13 +31,11 @@ export function IntroduceActionModal({ isOpen, onClose, request, onSubmit, devel
     setIsSubmitting(true);
     try {
       await onSubmit(request.id, {
-        assignedDeveloper,
-        targetCompletionDate,
         remarks: remarks.trim()
       });
       onClose();
     } catch (err) {
-      setErrors({ form: err.message || 'Failed to approve introduction' });
+      setErrors({ form: err.message || 'Failed to complete introduction' });
     } finally {
       setIsSubmitting(false);
     }
@@ -55,8 +45,8 @@ export function IntroduceActionModal({ isOpen, onClose, request, onSubmit, devel
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Introduce System — Approve: ${request.requestNo}`}
-      subtitle={`${request.companyName} • Kickoff Scoping Approval`}
+      title={`Introduce System: ${request.requestNo}`}
+      subtitle={`${request.companyName} • System Introduction`}
       footer={
         <>
           <button
@@ -69,19 +59,19 @@ export function IntroduceActionModal({ isOpen, onClose, request, onSubmit, devel
           </button>
           <button
             type="button"
-            className="soft-btn-primary font-semibold text-xs rounded-xl shadow-xs px-4 py-2 inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all hover:-translate-y-0.5"
-            onClick={handleSubmit}
             disabled={isSubmitting}
+            onClick={handleSubmit}
+            className="soft-btn-primary font-semibold text-xs rounded-xl shadow-xs px-4 py-2 inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all hover:-translate-y-0.5"
           >
             {isSubmitting ? (
               <>
                 <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Approving...</span>
+                <span>Submitting...</span>
               </>
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                <span>Approve & Submit</span>
+                <span>Complete & Send to Update in MIS System</span>
               </>
             )}
           </button>
@@ -89,12 +79,12 @@ export function IntroduceActionModal({ isOpen, onClose, request, onSubmit, devel
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Context snippet */}
         <div className="p-3.5 bg-slate-50/80 border border-slate-100 rounded-xl text-xs space-y-1.5">
           <div>
             <strong className="text-slate-900">Request:</strong>{' '}
             <span className="font-mono text-indigo-600 font-bold">{request.requestNo}</span> ({request.companyName})
           </div>
+          <div><strong className="text-slate-900">Developer:</strong> {request.assignedDeveloper}</div>
           <div className="text-slate-700 truncate font-medium"><strong className="text-slate-900">System Name:</strong> {request.systemName || request.systemRequirements}</div>
         </div>
 
@@ -105,27 +95,14 @@ export function IntroduceActionModal({ isOpen, onClose, request, onSubmit, devel
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Assigned Developer <span className="text-rose-500">*</span></label>
-            <SearchableSelect value={assignedDeveloper} options={developerOptions} isInvalid={Boolean(errors.assignedDeveloper)} onChange={setAssignedDeveloper} />
-            {errors.assignedDeveloper && <span className="text-[11px] text-rose-600 font-semibold mt-1 block">{errors.assignedDeveloper}</span>}
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5" htmlFor="targetCompletionDate">Target Completion Date <span className="text-rose-500">*</span></label>
-            <input id="targetCompletionDate" type="date" min={formatToKolkataDateString(new Date())} value={targetCompletionDate} onChange={e => setTargetCompletionDate(e.target.value)} className="w-full px-3.5 py-2.5 bg-white border border-slate-200/80 rounded-xl text-slate-800 text-sm" />
-            {errors.targetCompletionDate && <span className="text-[11px] text-rose-600 font-semibold mt-1 block">{errors.targetCompletionDate}</span>}
-          </div>
-        </div>
-
         <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5" htmlFor="introRemarks">
-            Discussion / Follow-up Remarks <span className="text-rose-500">*</span>
+          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5" htmlFor="introductionRemarks">
+            Introduction Remarks <span className="text-rose-500">*</span>
           </label>
           <textarea
-            id="introRemarks"
+            id="introductionRemarks"
             rows={4}
-            placeholder="Document kickoff meeting attendees, architectural alignment, milestones, or follow-up action items..."
+            placeholder="Record the system walkthrough, users introduced, handover details, and follow-up notes..."
             value={remarks}
             onChange={(e) => {
               setRemarks(e.target.value);

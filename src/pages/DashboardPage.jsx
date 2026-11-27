@@ -107,7 +107,7 @@ export function DashboardPage({
     let pending = 0;
 
     const normalizedRecords = list.map(req => {
-      const isClosed = req.currentStage === 'closed' || req.workStatus === 'Completed' || req.progressPercent === 100;
+      const isClosed = req.currentStage === 'Closed' || Boolean(req.misUpdate?.isCompleted);
       const targetDate = req.upgradeTargetDate || req.holdExtendTargetDate || req.targetCompletionDate;
       const actualDate = req.closedAt || req.actualMisDate || req.completedAt || (isClosed ? req.lastUpdatedAt : null);
 
@@ -132,7 +132,7 @@ export function DashboardPage({
           onTimeStatus = 'On-Time';
         }
       } else {
-        const isPendingStage = req.currentStage === 'requests' || req.currentStage === 'introduce' || req.workStatus === 'Planned' || !req.workStatus;
+        const isPendingStage = ['requests', 'Assign System', 'Introduce System'].includes(req.currentStage) || req.workStatus === 'Planned' || !req.workStatus;
         if (isPendingStage) {
           pending++;
           onTimeStatus = 'Pending';
@@ -154,7 +154,7 @@ export function DashboardPage({
         title: req.systemName || req.systemRequirements || 'Internal System',
         requester: req.requester || req.createdBy || '—',
         assignedTo: req.assignedDeveloper || 'Unassigned',
-        status: req.workStatus || req.currentStage || 'Pending',
+        status: req.currentStatus || req.currentStage || req.workStatus || 'Pending',
         plannedDate: targetDate ? formatDisplayDate(targetDate) : '—',
         actualDate: actualDate ? formatDisplayDate(actualDate) : '—',
         onTimeStatus,

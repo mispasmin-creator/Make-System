@@ -50,10 +50,18 @@ assert.equal(Object.prototype.toString.call(cells[6][col('Actual') - 1]), '[obje
 
 const introductionActual = cells[6][col('Actual') - 1];
 const completed = context.handleUpdateDevelopmentProgress('req-SM-0006', { workStatus: 'Completed', remarks: 'Ready for MIS', systemUrl: 'https://example.test/system' });
-assert.equal(completed.request.currentStage, 'Update MIS System');
+assert.equal(completed.request.currentStage, 'Introduce System');
+assert.throws(() => context.handleCompleteMisUpdate('req-SM-0006', { remarks: 'Too early' }), /introduction before/);
 assert.equal(Object.prototype.toString.call(cells[6][col('Actual 1') - 1]), '[object Date]');
 assert.equal(cells[6][col('Actual') - 1], introductionActual);
+assert.equal(context.fetchAllRequests().find(r => r.requestNo === 'SM-0006').currentStage, 'Introduce System');
+assert.throws(() => context.handleCompleteIntroduction('req-SM-0006', { remarks: ' ' }), /remarks are required/);
+const introduced = context.handleCompleteIntroduction('req-SM-0006', { remarks: 'Users trained and system introduced', updatedBy: 'Test Admin' });
+assert.equal(introduced.request.currentStage, 'Update MIS System');
+assert.equal(introduced.request.introduction.isCompleted, true);
+assert.equal(context.fetchAllRequests().find(r => r.requestNo === 'SM-0006').systemIntroduction.completedBy, 'Test Admin');
 assert.equal(context.fetchAllRequests().find(r => r.requestNo === 'SM-0006').currentStage, 'Update MIS System');
+assert.throws(() => context.handleCompleteIntroduction('req-SM-0006', { remarks: 'Again' }), /pending introduction/);
 context.handleCompleteMisUpdate('req-SM-0006', { remarks: 'MIS updated' });
 assert.equal(context.fetchAllRequests().find(r => r.requestNo === 'SM-0006').currentStage, 'Closed');
 
@@ -62,4 +70,4 @@ assert(Object.keys(props).some(k => k === 'REQMETA_SM-0006'));
 assert(writes.every(w => w.column <= headers.length), 'Nothing may be written to the metadata column');
 assert(writes.every(w => !mapping.protectedCols[w.column]), 'Planned/Delay columns are never written');
 for (const key of formulas) { const [r, c] = key.split(':').map(Number); assert.equal(cells[r - 1][c - 1], 12345); }
-console.log('PASS: current FMS layout - no metadata column, Planned/Delay formulas untouched, Create -> MIS -> Closed flow works.');
+console.log('PASS: current FMS layout - no metadata column, Planned/Delay formulas untouched, Assign -> Create -> Introduce -> MIS -> Closed flow works.');

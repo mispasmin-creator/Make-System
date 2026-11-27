@@ -28,7 +28,7 @@ export function MobileSystemHub({
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Identify which of the 3 systems is active
-  const isMake = ['requests', 'introduce', 'create', 'mis'].includes(activePage);
+  const isMake = ['requests', 'assign', 'create', 'introduce', 'mis'].includes(activePage);
   const isTech = ['technical-new', 'technical-all'].includes(activePage);
   const isRepair = activePage.startsWith('repair');
   const isDash = activePage === 'dashboard';
@@ -68,10 +68,11 @@ export function MobileSystemHub({
 
   // Stage options for the active system
   const makeStages = [
-    { id: 'requests', label: 'Requests', count: counts.totalRequests, icon: ClipboardList },
-    { id: 'introduce', label: 'Introduce', count: counts.introducePending, icon: Handshake },
-    { id: 'create', label: 'Create Dev', count: counts.createPending, icon: Code2 },
-    { id: 'mis', label: 'Update MIS', count: counts.misPending, icon: Database }
+    { id: 'requests', label: 'System Request', count: counts.totalRequests, icon: ClipboardList },
+    { id: 'assign', label: 'Assign System', count: counts.assignPending, icon: Handshake },
+    { id: 'create', label: 'Create System', count: counts.createPending, icon: Code2 },
+    { id: 'introduce', label: 'Introduce System', count: counts.introducePending, icon: Handshake },
+    { id: 'mis', label: 'Update in MIS System', count: counts.misPending, icon: Database }
   ].filter(s => authService.canAccessStage(currentUser, s.id));
 
   const techStages = [

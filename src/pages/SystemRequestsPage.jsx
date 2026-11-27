@@ -247,8 +247,8 @@ export function SystemRequestsPage({
               }}
             >
               <option value="">All Stages</option>
-              {[STAGES.INTRODUCE, STAGES.CREATE, STAGES.UPDATE_MIS, STAGES.CLOSED].map((s) => (
-                <option key={s} value={s}>{s}</option>
+              {[STAGES.ASSIGN, STAGES.CREATE, STAGES.INTRODUCE, STAGES.UPDATE_MIS, STAGES.CLOSED].map((s) => (
+                <option key={s} value={s}>{s === STAGES.UPDATE_MIS ? 'Update in MIS System' : s}</option>
               ))}
             </select>
 
@@ -321,8 +321,8 @@ export function SystemRequestsPage({
                 }}
               >
                 <option value="">All Stages</option>
-                {[STAGES.INTRODUCE, STAGES.CREATE, STAGES.UPDATE_MIS, STAGES.CLOSED].map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                {[STAGES.ASSIGN, STAGES.CREATE, STAGES.INTRODUCE, STAGES.UPDATE_MIS, STAGES.CLOSED].map((s) => (
+                  <option key={s} value={s}>{s === STAGES.UPDATE_MIS ? 'Update in MIS System' : s}</option>
                 ))}
               </select>
 
@@ -373,7 +373,7 @@ export function SystemRequestsPage({
             ) : (
               filteredRequests.map((req) => {
                 const isHold = req.workStatus === 'On Hold';
-                const isClosed = req.currentStage === STAGES.CLOSED || req.workStatus === 'Completed';
+                const isClosed = req.currentStage === STAGES.CLOSED;
 
                 return (
                   <div
@@ -402,7 +402,7 @@ export function SystemRequestsPage({
                                 : 'bg-indigo-100 text-indigo-700'
                             }`}
                           >
-                            {req.workStatus || req.currentStatus || 'Active'}
+                            {req.currentStatus || req.workStatus || 'Active'}
                           </span>
                         </div>
 

@@ -34,7 +34,7 @@ export function applyBulkAccess(user, change) {
   const base = user.role === 'Admin' ? {} : (user.permissions || {});
   const permissions = {};
   for (const id of STAGE_IDS) {
-    const old = base[id] || {};
+    const old = base[id] || (id === 'assign' ? base.introduce : null) || {};
     const picked = change.stages?.[id] || {};
     const wantsView = Boolean(picked.view || picked.update);
     let view = Boolean(old.view), update = Boolean(old.update);

@@ -25,9 +25,10 @@ export const APP_STAGES = [
   { id: 'requests', label: 'System Requests', description: 'View, filter and register new system requests' },
   { id: 'technical-new', label: 'Raise Technical Help', description: 'Submit a technical help ticket' },
   { id: 'technical-all', label: 'All Technical Tickets', description: 'View and filter technical help tickets' },
-  { id: 'introduce', label: 'Introduce System', description: 'Kickoff meetings and initial requirement discussions' },
+  { id: 'assign', label: 'Assign System', description: 'Assign developers, scope, and target dates' },
   { id: 'create', label: 'Create System', description: 'Core software development progress and hold management' },
-  { id: 'mis', label: 'Update MIS System', description: 'Final MIS synchronization and request lifecycle closure' },
+  { id: 'introduce', label: 'Introduce System', description: 'Introduce the completed system and record handover' },
+  { id: 'mis', label: 'Update in MIS System', description: 'Final MIS synchronization and request lifecycle closure' },
   { id: 'repair-new', label: 'New Issue Request', description: 'Submit new repair issue requests', repairAction: true },
   { id: 'repair-approval', label: 'Approval For Repair', description: 'Assess issues and submit repair approvals', repairAction: true },
   { id: 'repair-work', label: 'Resolve Problem', description: 'Submit resolution remarks and complete repairs', repairAction: true }

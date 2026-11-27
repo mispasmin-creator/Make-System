@@ -17,3 +17,9 @@ assert.equal(hasStageAccess({...user,status:'Inactive'},'repair-problem'),false)
 assert.equal(hasStageAccess({role:'Admin',status:'Active'},'admin'),true);
 assert.equal(normalizeAccess({role:'User',permissions:{create:{view:true,edit:true}}}).permissions.create.update,false);
 console.log('PASS: three-system isolation, aliases, View/Update separation, admin-only edit, inactive users, legacy migration and no password-based restriction.');
+
+const legacyAssignmentUser = { role: 'DME', status: 'Active', permissions: { introduce: { view: true, update: true } } };
+assert.equal(hasStageAccess(legacyAssignmentUser, 'assign', 'update'), true, 'Existing assignment access must survive the rename');
+assert.equal(hasStageAccess({ ...legacyAssignmentUser, permissions: { ...legacyAssignmentUser.permissions, assign: { view: false, update: false } } }, 'assign'), false, 'Explicit assignment permissions override legacy fallback');
+assert.equal(hasStageAccess({ ...legacyAssignmentUser, systemAccess: { make: false } }, 'assign'), false);
+console.log('PASS: legacy assignment access migrates while explicit stage and system restrictions remain effective.');

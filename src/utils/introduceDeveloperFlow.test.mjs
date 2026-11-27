@@ -59,14 +59,14 @@ const App = await loadComponent('src/App.jsx', 'App', {
   authService: { getCurrentUser: () => ({ role: 'Admin' }), isAdmin: () => true, canAccessStage: () => true },
   dataService: { loadCachedRequests: () => [request], loadCachedMasterOptions: () => master },
   REPAIR_NAV_ITEMS: [], STAGES: {}, WORK_STATUS: {},
-}, v => v === 'requests' ? 'introduce' : v);
-const pageProps = find(App(), 'IntroduceSystemPage').props;
-assert.deepEqual(pageProps.developerOptions, master.developers, 'App must pass Master names to IntroduceSystemPage');
+}, v => v === 'requests' ? 'assign' : v);
+const pageProps = find(App(), 'AssignSystemPage').props;
+assert.deepEqual(pageProps.developerOptions, master.developers, 'App must pass Master names to AssignSystemPage');
 
-const Page = await loadComponent('src/pages/IntroduceSystemPage.jsx', 'IntroduceSystemPage', { formatDisplayDateTime: value => value || '', formatDisplayDate: value => value || '' }, v => v === null ? request : v === false ? true : v);
-const modalProps = find(Page(pageProps), 'IntroduceActionModal').props;
+const Page = await loadComponent('src/pages/AssignSystemPage.jsx', 'AssignSystemPage', { STAGES, formatDisplayDateTime: value => value || '', formatDisplayDate: value => value || '' }, v => v === null ? request : v === false ? true : v);
+const modalProps = find(Page(pageProps), 'AssignActionModal').props;
 assert.deepEqual(modalProps.developerOptions, master.developers);
-const Modal = await loadComponent('src/components/IntroduceActionModal.jsx', 'IntroduceActionModal', { formatToKolkataDateString: () => '2026-10-28' });
+const Modal = await loadComponent('src/components/AssignActionModal.jsx', 'AssignActionModal', { formatToKolkataDateString: () => '2026-10-28' });
 const approvalForm = Modal(modalProps);
 assert(!JSON.stringify(approvalForm).includes('meetingDate'));
 assert(!JSON.stringify(approvalForm).includes('Meeting Date'));
@@ -97,13 +97,13 @@ assert.equal(approved.introduction.isCompleted, true);
 assert.equal(approved.assignedDeveloper, 'Bhupendra Kumar');
 assert(!('meetingDate' in approved.introduction));
 assert(!Array.from(backend.FMS_HEADERS).includes('Meeting Date'));
-console.log('PASS: Master B names -> App -> Introduce page -> approval form -> visible dropdown options -> developer selection.');
+console.log('PASS: Master B names -> App -> Assign page -> approval form -> visible dropdown options -> developer selection.');
 console.log('PASS: approval form and backend approval work without Meeting Date; new FMS template omits its column.');
 
 // Render actual table components using raw records an older backend can return.
 const fixture = (id, extra) => ({ id, requestNo: id, introduction: { isCompleted: true }, ...extra });
 const rows = [
-  fixture('TESTING-COMPLETE', { currentStage: STAGES.TESTING, workStatus: WORK_STATUS.COMPLETED }),
+  fixture('TESTING-COMPLETE', { currentStage: STAGES.UPDATE_MIS, workStatus: WORK_STATUS.COMPLETED }),
   fixture('CREATE-COMPLETE', { currentStage: STAGES.CREATE, workStatus: WORK_STATUS.COMPLETED }),
   fixture('CREATE-ACTIVE', { currentStage: STAGES.CREATE, workStatus: WORK_STATUS.IN_PROGRESS }),
   fixture('MIS-CLOSED', { currentStage: STAGES.TESTING, misUpdate: { isCompleted: true } }),
@@ -116,7 +116,7 @@ const flowScope = {
 const MisPage = await loadComponent('src/pages/UpdateMisSystemPage.jsx', 'UpdateMisSystemPage', flowScope);
 const misPending = JSON.stringify(find(MisPage({ requests: rows }), 'tbody'));
 assert(misPending.includes('TESTING-COMPLETE'));
-assert(misPending.includes('CREATE-COMPLETE'));
+assert(!misPending.includes('CREATE-COMPLETE'), 'Development completion must not skip introduction');
 assert(!misPending.includes('CREATE-ACTIVE'));
 assert(!misPending.includes('MIS-CLOSED'));
 const CreatePage = await loadComponent('src/pages/CreateSystemPage.jsx', 'CreateSystemPage', flowScope, v => v === 'pending' ? 'completed' : v);
@@ -124,4 +124,4 @@ const createCompleted = JSON.stringify(find(CreatePage({ requests: rows }), 'tbo
 assert(createCompleted.includes('TESTING-COMPLETE'));
 assert(createCompleted.includes('CREATE-COMPLETE'));
 assert(!createCompleted.includes('CREATE-ACTIVE'));
-console.log('PASS: actual Create Completed and MIS Pending tables both render legacy/current completed records; active and MIS-closed records excluded from MIS Pending.');
+console.log('PASS: Create Completed retains development history; MIS Pending excludes systems awaiting introduction, active and closed requests.');

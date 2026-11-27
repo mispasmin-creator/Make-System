@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -12,6 +12,7 @@ import { NewRequestModal } from './components/NewRequestModal';
 import { RequestDetailsModal } from './components/RequestDetailsModal';
 
 import { SystemRequestsPage } from './pages/SystemRequestsPage';
+import { AssignSystemPage } from './pages/AssignSystemPage';
 import { IntroduceSystemPage } from './pages/IntroduceSystemPage';
 import { CreateSystemPage } from './pages/CreateSystemPage';
 import { UpdateMisSystemPage } from './pages/UpdateMisSystemPage';
@@ -34,6 +35,9 @@ import { STAGES, WORK_STATUS } from './constants/stages';
 import { calculateDueStatus } from './utils/dateUtils';
 
 export default function App() {
+  const loadedMakeOwner = useRef(null);
+  const sheetSyncInFlight = useRef(false);
+  const lastSheetSyncCheck = useRef(0);
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
   const [activePage, setActivePage] = useState('requests');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -84,13 +88,17 @@ export default function App() {
     try {
       const user = authService.getCurrentUser();
       if (!user) return;
-      const makePages = ['dashboard', 'requests', 'introduce', 'create', 'mis'];
+      const makePages = ['dashboard', 'requests', 'assign', 'create', 'introduce', 'mis'];
       const isMakePage = makePages.includes(activePage) && SYSTEMS[0].stages.some(id => authService.canAccessStage(user, id));
+      const ownerKey = JSON.stringify([user.username, user.role, user.fullName, user.permissions, user.systemAccess]);
+      if (isMakePage && loadedMakeOwner.current === ownerKey) return;
       const data = isMakePage
         ? await dataService.forceSyncFromSheets()
         : { masterOptions: await dataService.getMasterOptions() };
 
+      if (authService.getCurrentUser()?.username !== user.username) return;
       if (data) {
+        if (data.requests) loadedMakeOwner.current = ownerKey;
         if (data.requests) {
           setRequests(data.requests);
           setNextRequestNo(dataService.getNextRequestNumber(data.requests));
@@ -113,6 +121,54 @@ export default function App() {
     const loadTimer = setTimeout(() => { loadData(); }, 0);
     return () => clearTimeout(loadTimer);
   }, [currentUser, loadData]);
+
+  // Manual FMS edits also move requests backward/forward through the app.
+  // onEdit() changes the lightweight backend version; normally this call only
+  // checks that version and downloads rows only when the sheet actually changed.
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    const makePages = ['dashboard', 'requests', 'assign', 'create', 'introduce', 'mis'];
+    const canReadMake = SYSTEMS[0].stages.some(id => authService.canAccessStage(currentUser, id));
+    if (!makePages.includes(activePage) || !canReadMake) return undefined;
+
+    let cancelled = false;
+    const refreshIfSheetChanged = async (force = false) => {
+      const now = Date.now();
+      if (sheetSyncInFlight.current || (!force && now - lastSheetSyncCheck.current < 3000)) return;
+      sheetSyncInFlight.current = true;
+      lastSheetSyncCheck.current = now;
+      try {
+        const sync = await dataService.checkSync();
+        if (cancelled || !sync?.hasChanges || !Array.isArray(sync.requests)) return;
+        setRequests(sync.requests);
+        setNextRequestNo(dataService.getNextRequestNumber(sync.requests));
+        if (sync.masterOptions) setMasterOptions(sync.masterOptions);
+        if (sync.users?.length) authService.syncUsersFromSheet(sync.users);
+      } catch (err) {
+        console.warn('Sheet change check failed:', err);
+      } finally {
+        sheetSyncInFlight.current = false;
+      }
+    };
+
+    const initialCheck = setTimeout(() => { refreshIfSheetChanged(); }, 1500);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') refreshIfSheetChanged();
+    }, 15000);
+    const onFocus = () => refreshIfSheetChanged(true);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshIfSheetChanged(true);
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      cancelled = true;
+      clearTimeout(initialCheck);
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [activePage, currentUser]);
 
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -148,13 +204,15 @@ export default function App() {
   const counts = useMemo(() => {
     const result = {
       totalRequests: requests.length,
+      assignPending: 0,
       introducePending: 0,
       createPending: 0,
       misPending: 0
     };
 
     requests.forEach(r => {
-      if (!r.introduction?.isCompleted) result.introducePending++;
+      if (r.currentStage === STAGES.ASSIGN) result.assignPending++;
+      if (r.currentStage === STAGES.INTRODUCE) result.introducePending++;
       if (r.introduction?.isCompleted && r.currentStage === STAGES.CREATE) {
         result.createPending++;
       }
@@ -182,6 +240,7 @@ export default function App() {
   // Auth Handlers
   const handleLoginSuccess = (user) => {
     // Start from an empty cache: the first screen must only ever contain this user's own data.
+    loadedMakeOwner.current = null;
     resetUserCaches();
     setCacheOwner(user.username);
     setRequests([]);
@@ -196,6 +255,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    loadedMakeOwner.current = null;
     authService.logout();
     resetUserCaches();
     setCacheOwner(null);
@@ -206,6 +266,7 @@ export default function App() {
 
   useEffect(() => {
     const onExpired = () => {
+      loadedMakeOwner.current = null;
       authService.logout();
       resetUserCaches();
       setCacheOwner(null);
@@ -226,17 +287,17 @@ export default function App() {
     setRequests(updated);
     setNextRequestNo(nextNo);
     const targetNo = res.requestNo || res.newReq?.requestNo || 'New';
-    showToast(`Request ${targetNo} created successfully! Added to Introduce System: Pending.`, 'success');
+    showToast(`Request ${targetNo} created successfully! Added to Assign System: Pending.`, 'success');
   };
 
-  // Handler: Introduce System Approve
-  const handleApproveIntroduction = async (requestId, introData) => {
+  // Handler: Assign System Approve
+  const handleApproveAssignment = async (requestId, introData) => {
     const res = await dataService.approveIntroduction(requestId, introData);
     const changed = res.updatedReq || res;
     const updated = res.allRequests || requests.map(item => item.id === requestId || item.requestNo === requestId ? { ...item, ...changed } : item);
     setRequests(updated);
     const targetNo = res.requestNo || res.updatedReq?.requestNo || requestId;
-    showToast(`Introduction approved for ${targetNo}. Transferred to Create System: Pending.`, 'success');
+    showToast(`Assignment approved for ${targetNo}. Transferred to Create System: Pending.`, 'success');
   };
 
   // Handler: Update Development Progress
@@ -249,9 +310,9 @@ export default function App() {
 
     if (devData.workStatus === WORK_STATUS.COMPLETED) {
       if (targetReq.currentRevisionNo) {
-        showToast(`Revision completed (100%) for ${targetReq.requestNo}. Transferred to Update MIS System: Pending.`, 'success');
+        showToast(`Revision completed (100%) for ${targetReq.requestNo}. Transferred to Introduce System: Pending.`, 'success');
       } else {
-        showToast(`Development completed (100%) for ${targetReq.requestNo}. Transferred to Update MIS System: Pending.`, 'success');
+        showToast(`Development completed (100%) for ${targetReq.requestNo}. Transferred to Introduce System: Pending.`, 'success');
       }
     } else if (devData.workStatus === WORK_STATUS.ON_HOLD) {
       const dateMsg = devData.extendedTargetDate ? ` (Target date extended to ${devData.extendedTargetDate})` : '';
@@ -259,6 +320,12 @@ export default function App() {
     } else {
       showToast(`Progress updated to ${devData.progressPercent}% for ${targetReq.requestNo}.`, 'success');
     }
+  };
+
+  const handleCompleteIntroduction = async (requestId, introData) => {
+    const res = await dataService.completeIntroduction(requestId, introData);
+    setRequests(res.allRequests);
+    showToast('Introduction completed. Transferred to Update in MIS System: Pending.', 'success');
   };
 
   // Handler: Complete MIS Update
@@ -274,6 +341,7 @@ export default function App() {
   // Handler: Reset Sample Data
   const handleResetSampleData = async () => {
     if (window.confirm('Are you sure you want to restore the default sample dataset?')) {
+      loadedMakeOwner.current = null;
       await dataService.resetToSampleData();
       await loadData();
       showToast('Sample dataset restored successfully.', 'info');
@@ -392,13 +460,13 @@ export default function App() {
                 {['repair-system', 'repair-problem'].includes(activePage) && <RepairRecordsPage key={activePage} stage={activePage === 'repair-problem' ? 'repair' : 'approval'} currentUser={currentUser} onNavigate={setActivePage} developerOptions={masterOptions.developers} />}
                 {REPAIR_NAV_ITEMS.filter(item => item.view !== 'records').map(item => activePage === item.id && <RepairSystemPage key={item.id} view={item.view} onNavigate={setActivePage} currentUser={currentUser} companyOptions={masterOptions.companies} />)}
 
-                {activePage === 'introduce' && (
-                  <IntroduceSystemPage
+                {activePage === 'assign' && (
+                  <AssignSystemPage
                     requests={requests}
                     developerOptions={masterOptions.developers}
-                    onApproveIntroduction={handleApproveIntroduction}
+                    onApproveAssignment={handleApproveAssignment}
                     onViewDetails={(req) => setDetailsRequest(req)}
-                    canApprove={authService.canAccessStage(currentUser, 'introduce', 'update')}
+                    canApprove={authService.canAccessStage(currentUser, 'assign', 'update')}
                   />
                 )}
 
@@ -411,6 +479,15 @@ export default function App() {
                   />
                 )}
 
+
+                {activePage === 'introduce' && (
+                  <IntroduceSystemPage
+                    requests={requests}
+                    onCompleteIntroduction={handleCompleteIntroduction}
+                    onViewDetails={(req) => setDetailsRequest(req)}
+                    canApprove={authService.canAccessStage(currentUser, 'introduce', 'update')}
+                  />
+                )}
 
                 {activePage === 'mis' && (
                   <UpdateMisSystemPage

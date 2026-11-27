@@ -50,7 +50,7 @@ export function UpdateMisSystemPage({
             <Database className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-800 leading-tight tracking-tight">Update MIS System</h1>
+            <h1 className="text-lg font-bold text-slate-800 leading-tight tracking-tight">Update in MIS System</h1>
             <p className="text-xs text-slate-500">
 
             </p>

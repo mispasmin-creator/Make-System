@@ -1,6 +1,6 @@
 import React from 'react';
 import { calculateDueStatus } from '../utils/dateUtils';
-import { WORK_STATUS } from '../constants/stages';
+import { WORK_STATUS, STAGES } from '../constants/stages';
 import {
   Clock,
   AlertTriangle,
@@ -151,7 +151,7 @@ export function StatusBadge({ type, value, label, subtext, targetDate, holdExten
   } else if (str.includes('pending') || str.includes('awaiting') || str.includes('soon')) {
     colorClasses = 'bg-amber-50/90 text-amber-700 border-amber-200/70 font-semibold shadow-2xs';
     IconComponent = Clock;
-  } else if (str.includes('progress') || str.includes('create') || str.includes('introduce')) {
+  } else if (str.includes('progress') || str.includes('create') || str.includes('introduce') || str.includes('assign')) {
     colorClasses = 'bg-indigo-50/90 text-indigo-700 border-indigo-200/70 font-semibold shadow-2xs';
     IconComponent = PlayCircle;
   }
@@ -159,7 +159,7 @@ export function StatusBadge({ type, value, label, subtext, targetDate, holdExten
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[11px] border ${colorClasses}`}>
       <IconComponent className="w-3 h-3 shrink-0 opacity-80" />
-      <span>{label || value}</span>
+      <span>{(label || value) === STAGES.UPDATE_MIS ? 'Update in MIS System' : (label || value)}</span>
       {subtext && <span className="opacity-75 font-normal ml-0.5">({subtext})</span>}
     </span>
   );
